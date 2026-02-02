@@ -11,7 +11,7 @@ describe('spqr', () => {
     builder.addEdge(a, b, false);
     const g = builder.build();
     const tree = spqrDecompose(g);
-    expect(tree.nodes[0].type).toBe('Q');
+    expect(tree.nodes[0]?.type).toBe('Q');
   });
 
   it('classifies P nodes for parallel edges', () => {
@@ -22,7 +22,7 @@ describe('spqr', () => {
     builder.addEdge(a, b, false);
     const g = builder.build();
     const tree = spqrDecompose(g);
-    expect(tree.nodes[0].type).toBe('P');
+    expect(tree.nodes[0]?.type).toBe('P');
   });
 
   it('classifies S nodes for cycles', () => {
@@ -37,7 +37,7 @@ describe('spqr', () => {
     builder.addEdge(v3, v0, false);
     const g = builder.build();
     const tree = spqrDecompose(g);
-    expect(tree.nodes[0].type).toBe('S');
+    expect(tree.nodes[0]?.type).toBe('S');
   });
 
   it('classifies R nodes for rigid graphs', () => {
@@ -54,6 +54,6 @@ describe('spqr', () => {
     builder.addEdge(v2, v3, false);
     const g = builder.build();
     const tree = spqrDecompose(g);
-    expect(tree.nodes[0].type).toBe('R');
+    expect(tree.nodes[0]?.type).toBe('R');
   });
 });

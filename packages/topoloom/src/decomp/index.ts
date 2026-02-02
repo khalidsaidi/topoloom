@@ -1,5 +1,7 @@
-import { Graph, GraphBuilder, EdgeId, VertexId } from '../graph';
-import { RotationSystem, rotationFromAdjacency } from '../embedding';
+import { GraphBuilder } from '../graph';
+import type { Graph, EdgeId, VertexId } from '../graph';
+import { rotationFromAdjacency } from '../embedding';
+import type { RotationSystem } from '../embedding';
 
 export type SPQRNodeType = 'S' | 'P' | 'R' | 'Q';
 
@@ -52,8 +54,10 @@ export function flipSkeleton(node: SPQRNode): RotationSystem {
 export function permuteParallel(node: SPQRNode, order: EdgeId[]): RotationSystem {
   const rotation = rotationFromAdjacency(node.skeleton);
   if (node.type !== 'P') return rotation;
-  const v0 = node.skeleton.edge(order[0]).u;
-  const v1 = node.skeleton.edge(order[0]).v;
+  if (order.length === 0) return rotation;
+  const first = order[0]!;
+  const v0 = node.skeleton.edge(first).u;
+  const v1 = node.skeleton.edge(first).v;
   const lookup = new Map<EdgeId, { edge: EdgeId; to: VertexId }>();
   for (const edge of order) {
     const record = node.skeleton.edge(edge);
