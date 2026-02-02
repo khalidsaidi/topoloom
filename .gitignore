@@ -10,3 +10,4 @@ coverage
 .ai/artifacts
 .cursor
 .firebase
+apps/showcase/public/build-info.json

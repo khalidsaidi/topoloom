@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { NavList } from '@/components/layout/NavList';
+import { Toaster } from '@/components/ui/sonner';
 
 export type AppShellProps = {
   children: ReactNode;
@@ -44,6 +45,7 @@ export function AppShell({ children }: AppShellProps) {
           <main className="space-y-8">{children}</main>
         </div>
       </div>
+      <Toaster />
     </div>
   );
 }

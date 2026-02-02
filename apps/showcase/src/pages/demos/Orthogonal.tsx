@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,12 +17,33 @@ import { buildHalfEdgeMesh, rotationFromAdjacency } from 'topoloom/embedding';
 export function OrthogonalDemo() {
   const [state, setState] = useState<GraphState>(presets.squareDiagonal);
   const [layout, setLayout] = useState<LayoutResult | null>(null);
+  const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
 
   const run = () => {
-    const graph = toTopoGraph(state);
-    const mesh = buildHalfEdgeMesh(graph, rotationFromAdjacency(graph));
-    const result = orthogonalLayout(mesh);
-    setLayout(result);
+    const start = performance.now();
+    setError(null);
+    if (state.directed) {
+      const message = 'Orthogonal layout currently supports undirected planar graphs only.';
+      setLayout(null);
+      setRuntimeMs(undefined);
+      setError(message);
+      toast.error(message);
+      return;
+    }
+    try {
+      const graph = toTopoGraph(state);
+      const mesh = buildHalfEdgeMesh(graph, rotationFromAdjacency(graph));
+      const result = orthogonalLayout(mesh);
+      setLayout(result);
+      setRuntimeMs(Math.round(performance.now() - start));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Orthogonal layout failed.';
+      setLayout(null);
+      setRuntimeMs(Math.round(performance.now() - start));
+      setError(message);
+      toast.error(message);
+    }
   };
 
   const nodes = useMemo(() => {
@@ -37,7 +59,11 @@ export function OrthogonalDemo() {
       title="Orthogonal layout"
       subtitle="Run Tamassia-style orthogonalization and compaction to build grid drawings."
       expectations={demoExpectations.orthogonal}
-      status={<Badge variant="secondary">{layout ? 'Drawn' : 'Pending'}</Badge>}
+      status={(
+        <Badge variant={error ? 'destructive' : 'secondary'}>
+          {error ? 'Error' : layout ? 'Drawn' : 'Pending'}
+        </Badge>
+      )}
       inputControls={
         <div className="space-y-4">
           <GraphEditor state={state} onChange={setState} />
@@ -47,10 +73,20 @@ export function OrthogonalDemo() {
       outputOverlay={
         <div className="space-y-3">
           <SvgViewport nodes={nodes} edges={layout?.edges ?? []} />
-          <StatsPanel bends={layout?.stats.bends} area={layout?.stats.area} crossings={layout?.stats.crossings} />
+          <StatsPanel
+            bends={layout?.stats.bends}
+            area={layout?.stats.area}
+            crossings={layout?.stats.crossings}
+            runtimeMs={runtimeMs}
+          />
+          {error && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
         </div>
       }
-      inspector={<JsonInspector data={layout ?? { status: 'pending' }} />}
+      inspector={<JsonInspector data={layout ?? { status: error ? 'error' : 'pending', message: error }} />}
     />
   );
 }

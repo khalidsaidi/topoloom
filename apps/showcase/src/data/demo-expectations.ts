@@ -58,6 +58,7 @@ export const demoExpectations = {
   orthogonal: [
     'Produces an orthogonal representation with minimized bends.',
     'Uses min-cost flow under Tamassia-style constraints.',
+    'Requires undirected planar input; directed graphs are rejected with a clear error.',
     'Compaction yields integer grid coordinates.',
     'Reports bend counts and area metrics.',
     'No renderer-specific styling is applied.',
