@@ -11,3 +11,4 @@ coverage
 .cursor
 .firebase
 apps/showcase/public/build-info.json
+apps/showcase/public/healthz.json

@@ -42,18 +42,28 @@ function mustHeaderContains(res, header, needle, label) {
 
   const home = await mustFetch(b + '/');
   if (!home.text || home.text.length < 200) throw new Error('Home HTML unexpectedly small/empty');
-  mustInclude(home.text, 'TopoLoom', 'Home HTML');
+  mustInclude(home.text, 'topoloom-smoke', 'Home HTML');
   mustHeaderContains(home.res, 'cache-control', 'no-cache', 'Home headers');
+
+  const healthUrl = b + '/healthz.json';
+  const health = await mustFetch(healthUrl);
+  let parsed;
+  try { parsed = JSON.parse(health.text); } catch { throw new Error('healthz.json not valid JSON'); }
+  if (parsed.product !== 'TopoLoom') throw new Error('healthz.json missing product=TopoLoom');
+  mustHeaderContains(health.res, 'cache-control', 'max-age=60', 'healthz headers');
+
+  if (expectedSha && parsed.gitSha && parsed.gitSha !== expectedSha) {
+    throw new Error(`healthz.gitSha mismatch: expected=${expectedSha} got=${parsed.gitSha}`);
+  }
 
   const biUrl = b + '/build-info.json';
   const bi = await mustFetch(biUrl);
-  let parsed;
-  try { parsed = JSON.parse(bi.text); } catch { throw new Error('build-info.json not valid JSON'); }
-  if (parsed.product !== 'TopoLoom') throw new Error('build-info.json missing product=TopoLoom');
+  let buildInfo;
+  try { buildInfo = JSON.parse(bi.text); } catch { throw new Error('build-info.json not valid JSON'); }
+  if (buildInfo.product !== 'TopoLoom') throw new Error('build-info.json missing product=TopoLoom');
   mustHeaderContains(bi.res, 'cache-control', 'max-age=60', 'build-info headers');
-
-  if (expectedSha && parsed.gitSha && parsed.gitSha !== expectedSha) {
-    throw new Error(`build-info.gitSha mismatch: expected=${expectedSha} got=${parsed.gitSha}`);
+  if (buildInfo.gitSha !== parsed.gitSha) {
+    throw new Error(`build-info.gitSha mismatch: healthz=${parsed.gitSha} build-info=${buildInfo.gitSha}`);
   }
 
   const m = home.text.match(/"\/assets\/[^\"]+\.(js|css)"/);
@@ -71,6 +81,7 @@ function mustHeaderContains(res, header, needle, label) {
   console.log('LIVE SMOKE OK');
   console.log({
     base: b,
+    healthUrl,
     biUrl,
     assetUrl,
     gitSha: parsed.gitSha,
