@@ -41,6 +41,8 @@ export function StBipolarDemo() {
           <div className="flex gap-2">
             <select
               className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+              id="st-source"
+              name="stSource"
               value={s}
               onChange={(event) => setS(Number(event.target.value))}
             >
@@ -50,6 +52,8 @@ export function StBipolarDemo() {
             </select>
             <select
               className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+              id="st-target"
+              name="stTarget"
               value={t}
               onChange={(event) => setT(Number(event.target.value))}
             >

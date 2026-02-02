@@ -34,8 +34,8 @@ export function DemoScaffold({
         <p className="max-w-3xl text-sm text-muted-foreground">{subtitle}</p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,_1fr)_minmax(260px,_360px)]">
-        <Card className="h-full">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,_1fr)_minmax(240px,_320px)] lg:items-start">
+        <Card className="h-full lg:row-span-2">
           <CardHeader>
             <CardTitle className="text-base">Output visualization</CardTitle>
           </CardHeader>
@@ -72,7 +72,7 @@ export function DemoScaffold({
           </CardContent>
         </Card>
 
-        <div className="grid gap-6 lg:self-start lg:max-h-[calc(100vh-8rem)] lg:overflow-auto">
+        <div className="grid gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Input</CardTitle>
@@ -102,22 +102,22 @@ export function DemoScaffold({
             </CardContent>
           </Card>
         </div>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">What you should expect</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
-            {expectations.map((item) => (
-              <li key={item} className="rounded-lg border border-dashed px-3 py-2">
-                {item}
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">What you should expect</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
+              {expectations.map((item) => (
+                <li key={item} className="rounded-lg border border-dashed px-3 py-2">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

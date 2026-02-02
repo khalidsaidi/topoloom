@@ -40,6 +40,7 @@ export function SvgViewport({
     const svg = svgRef.current;
     if (!svg) return undefined;
     const handleWheel = (event: WheelEvent) => {
+      if (!event.cancelable) return;
       event.preventDefault();
       const delta = event.deltaY > 0 ? 0.9 : 1.1;
       setScale((prev) => Math.min(3, Math.max(0.5, prev * delta)));
@@ -106,7 +107,7 @@ export function SvgViewport({
   return (
     <div
       className={cn(
-        'h-[340px] w-full overflow-hidden rounded-xl border bg-background/70 sm:h-[420px] md:h-[520px] lg:h-[62vh] xl:h-[68vh]',
+        'h-[360px] w-full overflow-hidden rounded-xl border bg-background/70 sm:h-[460px] md:h-[560px] lg:h-[70vh] xl:h-[74vh]',
         className,
       )}
     >

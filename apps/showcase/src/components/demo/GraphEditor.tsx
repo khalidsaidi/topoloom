@@ -160,6 +160,8 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
           <div className="text-[11px] uppercase text-muted-foreground">Preset</div>
           <select
             className="mt-1 w-full rounded-md border bg-background px-2 py-1"
+            id="preset-select"
+            name="preset"
             onChange={(event) => applyPreset(event.target.value as keyof typeof presets)}
           >
             <option value="triangle">Triangle</option>
@@ -180,6 +182,8 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
               <span className="text-[10px] uppercase text-muted-foreground">From node</span>
               <select
                 className="w-full rounded-md border bg-background px-2 py-1"
+                id="edge-from"
+                name="edgeFrom"
                 value={source}
                 onChange={(event) => setSource(Number(event.target.value))}
               >
@@ -192,6 +196,8 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
               <span className="text-[10px] uppercase text-muted-foreground">To node</span>
               <select
                 className="w-full rounded-md border bg-background px-2 py-1"
+                id="edge-to"
+                name="edgeTo"
                 value={target}
                 onChange={(event) => setTarget(Number(event.target.value))}
               >
@@ -264,6 +270,8 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
             </DialogHeader>
             <textarea
               className="min-h-[160px] w-full rounded-md border bg-background p-2 text-xs"
+              id="import-json"
+              name="importJson"
               value={importText}
               onChange={(event) => setImportText(event.target.value)}
             />

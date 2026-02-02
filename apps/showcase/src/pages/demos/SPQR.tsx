@@ -309,6 +309,8 @@ export function SPQRDemo() {
           <div className="text-[11px] uppercase text-muted-foreground">Preset</div>
           <select
             className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+            id="spqr-preset"
+            name="spqrPreset"
             onChange={(event) => resetGraph(event.target.value)}
           >
             <option value="triangle">Triangle</option>
