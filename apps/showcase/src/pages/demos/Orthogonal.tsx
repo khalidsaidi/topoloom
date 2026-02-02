@@ -11,8 +11,9 @@ import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
 import { presets, toTopoGraph } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
-import { orthogonalLayout, type LayoutResult } from 'topoloom/layout';
+import { orthogonalLayout, type LayoutResult, type EdgePath } from 'topoloom/layout';
 import { buildHalfEdgeMesh, rotationFromAdjacency } from 'topoloom/embedding';
+import { edgePathsFromState } from '@/components/demo/graph-utils';
 
 export function OrthogonalDemo() {
   const [state, setState] = useState<GraphState>(presets.squareDiagonal);
@@ -54,6 +55,9 @@ export function OrthogonalDemo() {
     });
   }, [layout, state.nodes]);
 
+  const previewEdges = useMemo<EdgePath[]>(() => edgePathsFromState(state), [state]);
+  const edges = layout?.edges ?? previewEdges;
+
   return (
     <DemoScaffold
       title="Orthogonal layout"
@@ -72,7 +76,7 @@ export function OrthogonalDemo() {
       }
       outputOverlay={
         <div className="space-y-3">
-          <SvgViewport nodes={nodes} edges={layout?.edges ?? []} />
+          <SvgViewport nodes={nodes} edges={edges} />
           <StatsPanel
             bends={layout?.stats.bends}
             area={layout?.stats.area}
