@@ -57,6 +57,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "fast-check": "^4.5.3",
     "tsup": "^8.5.1"
   }
 }
