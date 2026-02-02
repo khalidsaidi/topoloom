@@ -19,8 +19,8 @@ describe('order', () => {
     expect(numbering.order[0]).toBe(a);
     expect(numbering.order[numbering.order.length - 1]).toBe(c);
     const bNum = numbering.numberOf[b];
-    expect(bNum).toBeGreaterThan(numbering.numberOf[a]);
-    expect(bNum).toBeLessThan(numbering.numberOf[c]);
+    expect(bNum).toBeGreaterThan(numbering.numberOf[a] ?? 0);
+    expect(bNum).toBeLessThan(numbering.numberOf[c] ?? Number.MAX_SAFE_INTEGER);
   });
 
   it('computes bipolar orientation', () => {

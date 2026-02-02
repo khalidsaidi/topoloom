@@ -1,5 +1,6 @@
-import { Graph, GraphBuilder, VertexId, EdgeId } from '../graph';
-import { HalfEdgeMesh } from '../embedding';
+import { GraphBuilder } from '../graph';
+import type { Graph, VertexId, EdgeId } from '../graph';
+import type { HalfEdgeMesh } from '../embedding';
 
 export type StNumbering = {
   order: VertexId[];
@@ -19,8 +20,9 @@ export function validateStNumbering(graph: Graph, s: VertexId, t: VertexId, numb
     let hasHigher = false;
     for (const adj of graph.adjacency(v)) {
       const w = adj.to;
-      if (numbering.numberOf[w] < num) hasLower = true;
-      if (numbering.numberOf[w] > num) hasHigher = true;
+      const wNum = numbering.numberOf[w];
+      if (wNum !== undefined && num !== undefined && wNum < num) hasLower = true;
+      if (wNum !== undefined && num !== undefined && wNum > num) hasHigher = true;
     }
     if (!hasLower || !hasHigher) {
       throw new Error(`Vertex ${v} violates st-numbering property`);
@@ -87,15 +89,17 @@ export function bipolarOrientation(mesh: HalfEdgeMesh, s: VertexId, t: VertexId)
   for (let e = 0; e < edgeCount; e += 1) {
     const h0 = e * 2;
     const h1 = e * 2 + 1;
-    const u = mesh.origin[h0];
-    const v = mesh.origin[h1];
+    const u = mesh.origin[h0] as VertexId;
+    const v = mesh.origin[h1] as VertexId;
     builder.addEdge(u, v, false);
   }
   const graph = builder.build();
   const numbering = stNumbering(graph, s, t);
 
   const edgeDirections = graph.edges().map((edge) => {
-    const from = numbering.numberOf[edge.u] < numbering.numberOf[edge.v] ? edge.u : edge.v;
+    const numU = numbering.numberOf[edge.u] ?? 0;
+    const numV = numbering.numberOf[edge.v] ?? 0;
+    const from = numU < numV ? edge.u : edge.v;
     const to = from === edge.u ? edge.v : edge.u;
     return { edge: edge.id, from, to };
   });
