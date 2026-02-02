@@ -34,6 +34,16 @@ export function BCSPQRConcept() {
           <p>• Embedding choices come from flipping or permuting skeletons.</p>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">References</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>• Hopcroft &amp; Tarjan (1973): Dividing a graph into triconnected components.</p>
+          <p>• Gutwenger &amp; Mutzel (2001): Linear time SPQR-tree computation.</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

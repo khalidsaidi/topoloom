@@ -1,6 +1,7 @@
 import { GraphBuilder } from '../graph';
 import type { Graph, VertexId, EdgeId } from '../graph';
 import type { HalfEdgeMesh } from '../embedding';
+import { biconnectedComponents } from '../dfs';
 
 export type StNumbering = {
   order: VertexId[];
@@ -32,37 +33,124 @@ export function validateStNumbering(graph: Graph, s: VertexId, t: VertexId, numb
 
 export function stNumbering(graph: Graph, s: VertexId, t: VertexId): StNumbering {
   const n = graph.vertexCount();
-  const vertices = graph.vertices().filter((v) => v !== s && v !== t);
-  const placed = new Set<VertexId>([s]);
-  const order: VertexId[] = [s];
+  if (s === t) throw new Error('st-numbering requires distinct s and t.');
+  if (s < 0 || t < 0 || s >= n || t >= n) throw new Error('Invalid s or t.');
+  for (const edge of graph.edges()) {
+    if (edge.directed) throw new Error('st-numbering requires an undirected graph.');
+    if (edge.u === edge.v) throw new Error('st-numbering does not support self-loops.');
+  }
 
-  const neighbors = (v: VertexId) => graph.adjacency(v).map((adj) => adj.to);
+  const bcc = biconnectedComponents(graph);
+  if (bcc.blocks.length !== 1 || bcc.articulationPoints.length > 0) {
+    throw new Error('st-numbering requires a biconnected graph.');
+  }
 
-  const search = (depth: number): boolean => {
-    if (depth === n - 1) {
-      order.push(t);
-      return true;
+  const adjacency: Array<Array<{ to: VertexId; edge: EdgeId }>> = Array.from({ length: n }, () => []);
+  graph.edges().forEach((edge) => {
+    adjacency[edge.u]?.push({ to: edge.v, edge: edge.id });
+    adjacency[edge.v]?.push({ to: edge.u, edge: edge.id });
+  });
+
+  let hasEdgeST = false;
+  for (const edge of graph.edges()) {
+    if ((edge.u === s && edge.v === t) || (edge.u === t && edge.v === s)) {
+      hasEdgeST = true;
+      break;
     }
+  }
+  const extraEdgeId = graph.edgeCount();
+  if (!hasEdgeST) {
+    adjacency[s]?.push({ to: t, edge: extraEdgeId });
+    adjacency[t]?.push({ to: s, edge: extraEdgeId });
+  }
 
-    const candidates = vertices.filter((v) => !placed.has(v));
-    candidates.sort((a, b) => a - b);
-    for (const v of candidates) {
-      const neigh = neighbors(v);
-      const hasLower = neigh.some((u) => placed.has(u));
-      const hasHigher = neigh.some((u) => !placed.has(u) && u !== v) || t === v;
-      if (!hasLower || (!hasHigher && v !== t)) continue;
+  const dfsNum = Array(n).fill(-1);
+  const lowNum = Array(n).fill(0);
+  const parent = Array(n).fill(-1);
+  const parentEdge = Array(n).fill(-1);
+  const postOrder: VertexId[] = [];
+  let time = 0;
 
-      placed.add(v);
-      order.push(v);
-      if (search(depth + 1)) return true;
-      order.pop();
-      placed.delete(v);
+  const dfs = (v: VertexId) => {
+    dfsNum[v] = time;
+    lowNum[v] = time;
+    time += 1;
+
+    const neighbors = adjacency[v] ?? [];
+    for (const adj of neighbors) {
+      const w = adj.to;
+      const e = adj.edge;
+      if (dfsNum[w] === -1) {
+        parent[w] = v;
+        parentEdge[w] = e;
+        dfs(w);
+        if (lowNum[w] < lowNum[v]) {
+          lowNum[v] = lowNum[w];
+        }
+      } else if (e !== parentEdge[v]) {
+        if (dfsNum[w] < lowNum[v]) {
+          lowNum[v] = dfsNum[w];
+        }
+      }
     }
-    return false;
+    postOrder.push(v);
   };
 
-  if (!search(1)) {
-    throw new Error('Failed to compute st-numbering; ensure graph is biconnected and s,t are valid.');
+  dfs(s);
+
+  if (dfsNum[t] === -1) {
+    throw new Error('st-numbering requires s and t to be connected.');
+  }
+
+  const prev = Array(n).fill(-1);
+  const next = Array(n).fill(-1);
+  let head = s;
+  prev[s] = -1;
+  next[s] = t;
+  prev[t] = s;
+  next[t] = -1;
+
+  const insertBefore = (v: VertexId, anchor: VertexId) => {
+    const p = prev[anchor];
+    prev[v] = p;
+    next[v] = anchor;
+    prev[anchor] = v;
+    if (p !== -1) {
+      next[p] = v;
+    } else {
+      head = v;
+    }
+  };
+
+  const insertAfter = (v: VertexId, anchor: VertexId) => {
+    const nNext = next[anchor];
+    next[v] = nNext;
+    prev[v] = anchor;
+    next[anchor] = v;
+    if (nNext !== -1) {
+      prev[nNext] = v;
+    }
+  };
+
+  const processOrder = postOrder.slice().reverse();
+  for (const v of processOrder) {
+    if (v === s || v === t) continue;
+    const parentV = parent[v];
+    if (parentV === -1) continue;
+    if (lowNum[v] < dfsNum[parentV]) {
+      insertBefore(v, parentV);
+    } else {
+      insertAfter(v, parentV);
+    }
+  }
+
+  const order: VertexId[] = [];
+  for (let v = head; v !== -1; v = next[v]) {
+    order.push(v as VertexId);
+  }
+
+  if (order.length !== n) {
+    throw new Error('st-numbering failed to order all vertices.');
   }
 
   const numberOf = Array(n).fill(-1);
@@ -94,6 +182,22 @@ export function bipolarOrientation(mesh: HalfEdgeMesh, s: VertexId, t: VertexId)
     builder.addEdge(u, v, false);
   }
   const graph = builder.build();
+
+  const incidentFaces = (vertex: VertexId) => {
+    const faces = new Set<number>();
+    for (let h = 0; h < mesh.halfEdgeCount; h += 1) {
+      if (mesh.origin[h] === vertex) faces.add(mesh.face[h] ?? -1);
+    }
+    return faces;
+  };
+
+  const facesS = incidentFaces(s);
+  const facesT = incidentFaces(t);
+  const hasSharedFace = [...facesS].some((f) => facesT.has(f));
+  if (!hasSharedFace) {
+    throw new Error('Bipolar orientation requires s and t to share a face in the embedding.');
+  }
+
   const numbering = stNumbering(graph, s, t);
 
   const edgeDirections = graph.edges().map((edge) => {

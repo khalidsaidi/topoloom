@@ -23,6 +23,16 @@ export function OrthogonalFlowConcept() {
           <p>• Potentials keep shortest-path iterations efficient.</p>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">References</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>• Tamassia (1987): Orthogonal drawings with minimum number of bends.</p>
+          <p>• Flow-based compaction for orthogonal representations.</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

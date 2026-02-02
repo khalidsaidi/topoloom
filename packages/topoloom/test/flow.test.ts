@@ -9,6 +9,7 @@ describe('flow', () => {
       demands: [5, -5],
       arcs: [{ from: 0, to: 1, upper: 10, cost: 2 }],
     });
+    expect(result.feasible).toBe(true);
     expect(result.flowByArc[0]).toBe(5);
     expect(result.totalCost).toBe(10);
   });
@@ -19,6 +20,7 @@ describe('flow', () => {
       demands: [3, -3],
       arcs: [{ from: 0, to: 1, lower: 1, upper: 5, cost: 1 }],
     });
+    expect(result.feasible).toBe(true);
     expect(result.flowByArc[0]).toBe(3);
   });
 });

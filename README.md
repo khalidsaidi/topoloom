@@ -35,7 +35,7 @@ if (result.planar) {
 - `dual` — dual graph + dual shortest paths
 - `order` — st-numbering + bipolar orientation
 - `flow` — min-cost flow solver
-- `decomp` — SPQR decomposition scaffolding
+- `decomp` — SPQR decomposition (S/P/R/Q) with skeletons + embedding controls
 - `layout` — planar straight-line, orthogonal, planarization pipeline
 
 ## Showcase
@@ -43,6 +43,13 @@ Live demo: https://topoloom.web.app
 
 ## Philosophy
 **Topology first, geometry second.** Layout pipelines should not recompute planarity or embeddings if the kernel already provides them.
+
+## Complexity & limitations
+- Planarity testing uses a native core (WASM) and expects undirected graphs without self-loops.
+- SPQR decomposition expects biconnected, loopless, undirected graphs and returns virtual-edge skeletons.
+  The current implementation uses a split‑pair based decomposition with deterministic ordering. It is
+  correct for tested inputs but is not yet optimized to linear time.
+- Orthogonal layout assumes planar inputs; degree > 4 is handled via local expansion.
 
 ## Contributing
 - Use pnpm >= 9 and Node >= 20.

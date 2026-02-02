@@ -21,6 +21,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install
+      - run: pnpm check:no-stubs
       - run: pnpm -r typecheck
       - run: pnpm -r lint
       - run: pnpm -r test
@@ -31,4 +32,3 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_TOPOLOOM_PROD_20260202_KH }}'
           channelId: live
           projectId: topoloom-prod-20260202-kh
-          siteId: topoloom

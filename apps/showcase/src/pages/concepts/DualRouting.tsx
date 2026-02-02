@@ -24,6 +24,16 @@ export function DualRoutingConcept() {
           <p>• Deterministic tie-breaking makes layouts reproducible.</p>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">References</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>• Planar dual graphs and face-adjacency shortest paths.</p>
+          <p>• Fixed-embedding edge insertion via dual shortest paths.</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

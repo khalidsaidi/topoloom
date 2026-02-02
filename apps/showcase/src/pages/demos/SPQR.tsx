@@ -25,14 +25,22 @@ export function SPQRDemo() {
   };
 
   const flip = () => {
-    if (!tree?.nodes?.[0]) return;
-    setEmbedding(flipSkeleton(tree.nodes[0]));
+    if (!tree?.nodes?.length) return;
+    const target = tree.nodes.find((node) => node.type === 'R') ?? tree.nodes[0];
+    if (!target) return;
+    setEmbedding(flipSkeleton(target));
   };
 
   const permute = () => {
-    if (!tree?.nodes?.[0]) return;
-    const edges = tree.nodes[0].realEdges.slice().reverse();
-    setEmbedding(permuteParallel(tree.nodes[0], edges));
+    if (!tree?.nodes?.length) return;
+    const target = tree.nodes.find((node) => node.type === 'P') ?? tree.nodes[0];
+    if (!target) return;
+    const edges = target.edgeKind
+      .map((kind, idx) => (kind ? idx : -1))
+      .filter((idx) => idx >= 0)
+      .reverse();
+    if (edges.length === 0) return;
+    setEmbedding(permuteParallel(target, edges));
   };
 
   const edges = useMemo(() => edgePathsFromState(state), [state]);

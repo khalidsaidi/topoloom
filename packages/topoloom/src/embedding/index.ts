@@ -37,16 +37,19 @@ export function rotationFromAdjacency(graph: Graph): RotationSystem {
 
 export function buildHalfEdgeMesh(graph: Graph, rotation: RotationSystem): HalfEdgeMesh {
   const halfEdgeCount = graph.edgeCount() * 2;
-  const origin: VertexId[] = Array(halfEdgeCount).fill(0);
-  const twin: HalfEdgeId[] = Array(halfEdgeCount).fill(0);
-  const next: HalfEdgeId[] = Array(halfEdgeCount).fill(0);
-  const prev: HalfEdgeId[] = Array(halfEdgeCount).fill(0);
-  const edge: EdgeId[] = Array(halfEdgeCount).fill(0);
+  const origin: VertexId[] = Array(halfEdgeCount).fill(-1);
+  const twin: HalfEdgeId[] = Array(halfEdgeCount).fill(-1);
+  const next: HalfEdgeId[] = Array(halfEdgeCount).fill(-1);
+  const prev: HalfEdgeId[] = Array(halfEdgeCount).fill(-1);
+  const edge: EdgeId[] = Array(halfEdgeCount).fill(-1);
   const face: FaceId[] = Array(halfEdgeCount).fill(-1);
 
   const halfEdgeOf = new Map<string, HalfEdgeId>();
 
   graph.edges().forEach((edgeRecord) => {
+    if (edgeRecord.directed) {
+      throw new Error('Embedding does not support directed edges in half-edge compilation.');
+    }
     if (edgeRecord.u === edgeRecord.v) {
       throw new Error('Embedding does not support self-loops in half-edge compilation.');
     }
@@ -62,6 +65,38 @@ export function buildHalfEdgeMesh(graph: Graph, rotation: RotationSystem): HalfE
     halfEdgeOf.set(`${edgeRecord.id}:${edgeRecord.v}`, h1);
   });
 
+  // Validate rotation system against the graph.
+  for (let v = 0; v < graph.vertexCount(); v += 1) {
+    const adj = graph.adjacency(v);
+    for (const entry of adj) {
+      if (entry.dir !== 'undirected') {
+        throw new Error('Rotation system requires an undirected graph.');
+      }
+    }
+    const expected = new Map<EdgeId, VertexId>();
+    for (const entry of adj) {
+      expected.set(entry.edge, entry.to);
+    }
+    const cyclic = rotation.order[v] ?? [];
+    if (cyclic.length !== expected.size) {
+      throw new Error(`Rotation system for vertex ${v} has wrong degree.`);
+    }
+    const seen = new Set<EdgeId>();
+    for (const ref of cyclic) {
+      if (seen.has(ref.edge)) {
+        throw new Error(`Rotation system duplicates edge ${ref.edge} at vertex ${v}.`);
+      }
+      const to = expected.get(ref.edge);
+      if (to === undefined) {
+        throw new Error(`Rotation system lists non-incident edge ${ref.edge} at vertex ${v}.`);
+      }
+      if (to !== ref.to) {
+        throw new Error(`Rotation system has mismatched endpoint for edge ${ref.edge} at vertex ${v}.`);
+      }
+      seen.add(ref.edge);
+    }
+  }
+
   // Build next/prev based on rotation system
   for (let v = 0; v < rotation.order.length; v += 1) {
     const cyclic = rotation.order[v] ?? [];
@@ -73,15 +108,26 @@ export function buildHalfEdgeMesh(graph: Graph, rotation: RotationSystem): HalfE
         throw new Error(`Rotation system missing half-edge for vertex ${v} edge ${ref.edge}`);
       }
       const twinH = twin[h];
+      if (twinH === undefined || twinH < 0) {
+        throw new Error(`Rotation system missing twin for half-edge ${h}`);
+      }
       const nextRef = cyclic[(i + 1) % cyclic.length]!;
       const nextHalfEdge = halfEdgeOf.get(`${nextRef.edge}:${v}`);
       if (nextHalfEdge === undefined) {
         throw new Error(`Rotation system missing next half-edge for vertex ${v} edge ${nextRef.edge}`);
       }
-      if (twinH !== undefined) {
-        next[twinH] = nextHalfEdge;
-        prev[nextHalfEdge] = twinH;
+      next[twinH] = nextHalfEdge;
+      const prevValue = prev[nextHalfEdge];
+      if (prevValue !== undefined && prevValue !== -1 && prevValue !== twinH) {
+        throw new Error(`Rotation system conflicts on prev for half-edge ${nextHalfEdge}`);
       }
+      prev[nextHalfEdge] = twinH;
+    }
+  }
+
+  for (let h = 0; h < halfEdgeCount; h += 1) {
+    if (next[h] === -1 || prev[h] === -1) {
+      throw new Error(`Rotation system left half-edge ${h} without next/prev.`);
     }
   }
 
@@ -90,14 +136,23 @@ export function buildHalfEdgeMesh(graph: Graph, rotation: RotationSystem): HalfE
     if (face[h] !== -1) continue;
     const cycle: HalfEdgeId[] = [];
     let current = h;
-    while (true) {
-      if (face[current] !== -1) break;
+    let guard = 0;
+    while (guard <= halfEdgeCount) {
+      if (face[current] !== -1) {
+        break;
+      }
       face[current] = faces.length;
       cycle.push(current);
       const nextH = next[current];
-      if (nextH === undefined) break;
+      if (nextH === -1 || nextH === undefined) {
+        throw new Error(`Half-edge ${current} has no next pointer.`);
+      }
       current = nextH;
       if (current === h) break;
+      guard += 1;
+    }
+    if (current !== h) {
+      throw new Error('Face traversal did not close.');
     }
     faces.push(cycle);
   }
@@ -117,18 +172,27 @@ export function validateMesh(mesh: HalfEdgeMesh): { ok: boolean; errors: string[
   const errors: string[] = [];
   for (let h = 0; h < mesh.halfEdgeCount; h += 1) {
     const t = mesh.twin[h];
-    if (t === undefined || mesh.twin[t] !== h) errors.push(`Twin mismatch at half-edge ${h}`);
+    if (t === undefined || t < 0 || mesh.twin[t] !== h) errors.push(`Twin mismatch at half-edge ${h}`);
     const prevH = mesh.prev[h];
-    if (prevH === undefined || mesh.next[prevH] !== h) {
+    if (prevH === undefined || prevH < 0 || mesh.next[prevH] !== h) {
       errors.push(`Prev/next mismatch at half-edge ${h}`);
+    }
+    const nextH = mesh.next[h];
+    if (nextH === undefined || nextH < 0 || mesh.prev[nextH] !== h) {
+      errors.push(`Next/prev mismatch at half-edge ${h}`);
     }
   }
   const seen = new Set<number>();
   mesh.faces.forEach((cycle, faceId) => {
     if (cycle.length === 0) errors.push(`Empty face ${faceId}`);
-    for (const h of cycle) {
+    for (let i = 0; i < cycle.length; i += 1) {
+      const h = cycle[i]!;
       if (seen.has(h)) errors.push(`Half-edge ${h} appears in multiple faces`);
       seen.add(h);
+      const nextH = mesh.next[h];
+      if (nextH !== cycle[(i + 1) % cycle.length]) {
+        errors.push(`Face ${faceId} not consistent with next pointers at ${h}`);
+      }
     }
   });
   if (seen.size !== mesh.halfEdgeCount) {

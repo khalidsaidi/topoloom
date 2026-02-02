@@ -32,7 +32,7 @@ describe('property checks', () => {
           expect(validation.ok).toBe(true);
         },
       ),
-      { numRuns: 50 },
+      { numRuns: 50, seed: 42 },
     );
   });
 
@@ -61,7 +61,7 @@ describe('property checks', () => {
           }
         },
       ),
-      { numRuns: 30 },
+      { numRuns: 30, seed: 42 },
     );
   });
 
@@ -76,6 +76,7 @@ describe('property checks', () => {
           arcs.push({ from: i, to: i + 1, lower: 0, upper: 10, cost: 1 });
         }
         const result = minCostFlow({ nodeCount: n, arcs, demands });
+        expect(result.feasible).toBe(true);
         const flow = result.flowByArc;
         for (let i = 0; i < arcs.length; i += 1) {
           expect(flow[i]).toBeGreaterThanOrEqual(arcs[i]?.lower ?? 0);
@@ -91,7 +92,7 @@ describe('property checks', () => {
           expect(netOut[i]).toBe(demands[i]);
         }
       }),
-      { numRuns: 20 },
+      { numRuns: 20, seed: 42 },
     );
   });
 });

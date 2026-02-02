@@ -35,6 +35,16 @@ export function RotationConcept() {
           <p>• Faces become first-class nodes in the dual graph.</p>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">References</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>• DCEL / half-edge data structures for planar embeddings.</p>
+          <p>• Boyer &amp; Myrvold (2004): Simplified linear-time planarity test and embedding.</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
