@@ -1,7 +1,0 @@
-{
-  "product": "TopoLoom",
-  "gitSha": "323640bccbae18aac82687342e7464c691b48c60",
-  "gitRef": "hardening/ui-smoke-and-postdeploy-verify",
-  "builtAt": "2026-02-02T07:26:15.094Z",
-  "libraryVersion": "0.1.0"
-}

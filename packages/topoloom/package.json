@@ -1,6 +1,6 @@
 {
   "name": "topoloom",
-  "version": "0.1.0",
+  "version": "0.2.2",
   "description": "Topology-first graph drawing kernel for JS: embeddings, decompositions, dual routing, min-cost flow, and coordinate pipelines.",
   "license": "MIT",
   "type": "module",
