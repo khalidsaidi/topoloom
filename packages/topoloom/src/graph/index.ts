@@ -71,7 +71,9 @@ export class Graph {
   }
 
   edge(e: EdgeId): EdgeRecord {
-    return this._edges[e];
+    const record = this._edges[e];
+    if (!record) throw new Error(`Edge ${e} not found`);
+    return record;
   }
 
   adjacency(v: VertexId): ReadonlyArray<AdjEntry> {
@@ -128,11 +130,11 @@ export class GraphBuilder {
     this.edges.push(record);
 
     if (directed) {
-      this.adj[u].push({ edge: id, to: v, dir: 'out' });
-      this.adj[v].push({ edge: id, to: u, dir: 'in' });
+      this.adj[u]?.push({ edge: id, to: v, dir: 'out' });
+      this.adj[v]?.push({ edge: id, to: u, dir: 'in' });
     } else {
-      this.adj[u].push({ edge: id, to: v, dir: 'undirected' });
-      this.adj[v].push({ edge: id, to: u, dir: 'undirected' });
+      this.adj[u]?.push({ edge: id, to: v, dir: 'undirected' });
+      this.adj[v]?.push({ edge: id, to: u, dir: 'undirected' });
     }
 
     return id;

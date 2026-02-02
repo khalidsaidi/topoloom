@@ -54,6 +54,6 @@ describe('graph', () => {
     const g = fromAdjList({ a: ['b', 'c'], b: ['c'] });
     expect(g.edgeCount()).toBe(3);
     const list = g.toEdgeList();
-    expect(list[0][2]).toBe(false);
+    expect(list[0]?.[2]).toBe(false);
   });
 });
