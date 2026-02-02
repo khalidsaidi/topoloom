@@ -6,7 +6,11 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] },
+    "paths": {
+      "@/*": ["./src/*"],
+      "topoloom": ["../../packages/topoloom/src/index.ts"],
+      "topoloom/*": ["../../packages/topoloom/src/*/index.ts"]
+    },
     "types": ["vite/client"],
     "skipLibCheck": true,
 

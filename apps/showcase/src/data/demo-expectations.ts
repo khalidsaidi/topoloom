@@ -13,6 +13,7 @@ export const demoExpectations = {
     'Guarantees each half-edge has a twin and consistent next/prev cycles.',
     'Exposes dual adjacency derived from face boundaries.',
     'No layout is produced; this is pure topology.',
+    'Self-loops are rejected during half-edge compilation.',
   ],
   bcTree: [
     'Separates blocks (biconnected components) from cut vertices.',
@@ -20,6 +21,7 @@ export const demoExpectations = {
     'Articulation vertices appear as shared nodes in the BC-tree.',
     'No reordering or layout is applied here.',
     'Stable iteration order preserves block IDs across runs.',
+    'Blocks are reported as edge sets rather than vertex-induced subgraphs.',
   ],
   spqr: [
     'Builds the SPQR tree for biconnected planar blocks.',
@@ -27,6 +29,7 @@ export const demoExpectations = {
     'Supports valid flips/permutes where allowed by topology.',
     'Does not select a final embedding unless asked.',
     'Deterministic decomposition for identical inputs.',
+    'Skeletons are reported in the same insertion order as the source graph.',
   ],
   stBipolar: [
     'Computes st-numbering for a chosen (s,t) on a biconnected graph.',
@@ -34,6 +37,7 @@ export const demoExpectations = {
     'Guarantees a unique source (s) and sink (t).',
     'Internal vertices have both incoming and outgoing edges.',
     'No coordinates are produced in this step.',
+    'Inputs must be biconnected for st-numbering to succeed.',
   ],
   dualRouting: [
     'Constructs the dual graph from the current embedding.',
@@ -41,6 +45,7 @@ export const demoExpectations = {
     'Routes return crossed primal edges + face sequence.',
     'Weights are user-configurable and deterministic.',
     'No automatic edge insertion is performed without explicit request.',
+    'Multiple edges in the dual are preserved for multi-edge faces.',
   ],
   minCostFlow: [
     'Solves min-cost flow with capacities and costs.',
@@ -48,6 +53,7 @@ export const demoExpectations = {
     'Outputs flows, costs, and reduced costs when available.',
     'Deterministic solver with stable tie-breaking.',
     'Does not mutate the input network.',
+    'Lower bounds are enforced via feasibility transform.',
   ],
   orthogonal: [
     'Produces an orthogonal representation with minimized bends.',
@@ -55,6 +61,7 @@ export const demoExpectations = {
     'Compaction yields integer grid coordinates.',
     'Reports bend counts and area metrics.',
     'No renderer-specific styling is applied.',
+    'Degree reduction for high-degree vertices is applied implicitly.',
   ],
   planarization: [
     'Finds a maximal planar subgraph as the backbone.',
@@ -62,5 +69,6 @@ export const demoExpectations = {
     'Crossings are converted to dummy vertices for layout.',
     'Outputs both intermediate planarized and final drawings.',
     'Crossings are explicitly marked, not hidden.',
+    'Edge insertion order is deterministic (insertion-order).',
   ],
 } as const;

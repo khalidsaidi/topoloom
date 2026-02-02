@@ -1,34 +1,78 @@
+import { useMemo, useState } from 'react';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
+import { JsonInspector } from '@/components/demo/JsonInspector';
+import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
+import { createGraphState } from '@/components/demo/graph-model';
+import type { GraphState } from '@/components/demo/graph-model';
+import { edgePathsFromState } from '@/components/demo/graph-utils';
+import { minCostFlow, type FlowResult } from 'topoloom/flow';
+
+type FlowPreset = {
+  nodeCount: number;
+  demands: number[];
+  arcs: Array<{ from: number; to: number; lower?: number; upper: number; cost: number }>;
+};
+
+const presets: Record<string, FlowPreset> = {
+  simple: {
+    nodeCount: 3,
+    demands: [5, 0, -5],
+    arcs: [
+      { from: 0, to: 1, upper: 5, cost: 1 },
+      { from: 1, to: 2, upper: 5, cost: 1 },
+      { from: 0, to: 2, upper: 5, cost: 2 },
+    ],
+  },
+  lowerBounds: {
+    nodeCount: 2,
+    demands: [3, -3],
+    arcs: [{ from: 0, to: 1, lower: 1, upper: 5, cost: 1 }],
+  },
+};
+
+const toGraphState = (network: FlowPreset): GraphState => {
+  const nodes = Array.from({ length: network.nodeCount }, (_, i) => ({ id: i, x: i * 60 - 60, y: 0 }));
+  const edges = network.arcs.map((arc) => ({ source: arc.from, target: arc.to }));
+  return createGraphState(nodes, edges, true);
+};
 
 export function MinCostFlowDemo() {
+  const [network, setNetwork] = useState<FlowPreset>(presets.simple);
+  const [result, setResult] = useState<FlowResult | null>(null);
+
+  const run = () => {
+    const res = minCostFlow(network);
+    setResult(res);
+  };
+
+  const graphState = useMemo(() => toGraphState(network), [network]);
+
   return (
     <DemoScaffold
       title="Min-cost flow"
       subtitle="Solve network flow instances and inspect costs, potentials, and reduced costs."
       expectations={demoExpectations.minCostFlow}
-      status={<Badge variant="secondary">Network ready</Badge>}
+      status={<Badge variant="secondary">{result ? 'Solved' : 'Pending'}</Badge>}
       inputControls={
         <div className="space-y-4">
-          <div className="rounded-lg border border-dashed bg-muted/40 p-4 text-sm text-muted-foreground">
-            Network editor will live here (nodes, arcs, capacities, costs).
-          </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm">Load preset</Button>
-            <Button size="sm" variant="outline">
-              Solve flow
-            </Button>
+            <Button size="sm" onClick={() => setNetwork(presets.simple)}>Load preset</Button>
+            <Button size="sm" variant="outline" onClick={() => setNetwork(presets.lowerBounds)}>Lower bound preset</Button>
           </div>
+          <Button size="sm" onClick={run}>Solve flow</Button>
         </div>
       }
       outputOverlay={
-        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <Badge variant="outline">Flow values</Badge>
-          <Badge variant="outline">Potentials</Badge>
-        </div>
+        <SvgViewport
+          nodes={graphState.nodes}
+          edges={edgePathsFromState(graphState)}
+        />
       }
+      inspector={<JsonInspector data={result ?? network} />}
     />
   );
 }

@@ -8,8 +8,7 @@ export function Api() {
         <Badge variant="outline">API</Badge>
         <h2 className="text-2xl font-semibold">Reference</h2>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Typedoc output and module docs will be embedded here. For now, explore the demos to inspect
-          live JSON outputs.
+          Typedoc output is embedded below. For live JSON structures, explore the demos.
         </p>
       </header>
 
@@ -25,13 +24,12 @@ export function Api() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Docs roadmap</CardTitle>
+          <CardTitle className="text-base">Typedoc</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
-          <p>• Rotation system vs half-edge overview</p>
-          <p>• BC-tree + SPQR intuition walkthroughs</p>
-          <p>• Dual routing and edge insertion cookbook</p>
-          <p>• Flow reductions for orthogonal layouts</p>
+        <CardContent>
+          <div className="h-[520px] overflow-hidden rounded-lg border">
+            <iframe title="TopoLoom API" src="/api/index.html" className="h-full w-full" />
+          </div>
         </CardContent>
       </Card>
     </div>

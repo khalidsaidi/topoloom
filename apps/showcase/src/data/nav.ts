@@ -19,6 +19,15 @@ export const navSections: NavSection[] = [
     ],
   },
   {
+    title: 'Kernel Concepts',
+    items: [
+      { label: 'Rotation vs Half-Edge', path: '/concepts/rotation' },
+      { label: 'BC-tree + SPQR', path: '/concepts/bc-spqr' },
+      { label: 'Dual Routing', path: '/concepts/dual-routing' },
+      { label: 'Orthogonal Flow', path: '/concepts/orthogonal-flow' },
+    ],
+  },
+  {
     title: 'Topology Demos',
     items: [
       { label: 'Planarity', path: '/demo/planarity' },

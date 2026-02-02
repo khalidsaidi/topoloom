@@ -49,32 +49,35 @@ export function DemoScaffold({
             <CardTitle className="text-base">Output visualization</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="relative h-[360px] w-full overflow-hidden rounded-xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/60">
-              <svg viewBox="0 0 400 260" className="h-full w-full">
-                <g stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.5">
-                  <line x1="80" y1="60" x2="200" y2="40" />
-                  <line x1="200" y1="40" x2="320" y2="80" />
-                  <line x1="320" y1="80" x2="280" y2="190" />
-                  <line x1="280" y1="190" x2="120" y2="210" />
-                  <line x1="120" y1="210" x2="80" y2="60" />
-                </g>
-                <g fill="currentColor">
-                  {[
-                    { x: 80, y: 60 },
-                    { x: 200, y: 40 },
-                    { x: 320, y: 80 },
-                    { x: 280, y: 190 },
-                    { x: 120, y: 210 },
-                  ].map((node, index) => (
-                    <circle key={index} cx={node.x} cy={node.y} r="8" opacity="0.6" />
-                  ))}
-                </g>
-              </svg>
-              <div className="absolute inset-x-4 bottom-4 rounded-lg bg-background/80 px-3 py-2 text-xs text-muted-foreground shadow-sm">
-                SVG viewport with pan/zoom + draggable nodes will render here.
+            {outputOverlay ? (
+              <div>{outputOverlay}</div>
+            ) : (
+              <div className="relative h-[360px] w-full overflow-hidden rounded-xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/60">
+                <svg viewBox="0 0 400 260" className="h-full w-full">
+                  <g stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.5">
+                    <line x1="80" y1="60" x2="200" y2="40" />
+                    <line x1="200" y1="40" x2="320" y2="80" />
+                    <line x1="320" y1="80" x2="280" y2="190" />
+                    <line x1="280" y1="190" x2="120" y2="210" />
+                    <line x1="120" y1="210" x2="80" y2="60" />
+                  </g>
+                  <g fill="currentColor">
+                    {[
+                      { x: 80, y: 60 },
+                      { x: 200, y: 40 },
+                      { x: 320, y: 80 },
+                      { x: 280, y: 190 },
+                      { x: 120, y: 210 },
+                    ].map((node, index) => (
+                      <circle key={index} cx={node.x} cy={node.y} r="8" opacity="0.6" />
+                    ))}
+                  </g>
+                </svg>
+                <div className="absolute inset-x-4 bottom-4 rounded-lg bg-background/80 px-3 py-2 text-xs text-muted-foreground shadow-sm">
+                  SVG viewport with pan/zoom + draggable nodes will render here.
+                </div>
               </div>
-            </div>
-            {outputOverlay ? <div>{outputOverlay}</div> : null}
+            )}
           </CardContent>
         </Card>
 

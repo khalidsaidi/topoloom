@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] }
+    "paths": {
+      "@/*": ["./src/*"],
+      "topoloom": ["../../packages/topoloom/src/index.ts"],
+      "topoloom/*": ["../../packages/topoloom/src/*/index.ts"]
+    }
   },
   "files": [],
   "references": [

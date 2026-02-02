@@ -13,6 +13,10 @@ import { PlanarityDemo } from '@/pages/demos/Planarity';
 import { PlanarizationDemo } from '@/pages/demos/Planarization';
 import { SPQRDemo } from '@/pages/demos/SPQR';
 import { StBipolarDemo } from '@/pages/demos/StBipolar';
+import { RotationConcept } from '@/pages/concepts/Rotation';
+import { BCSPQRConcept } from '@/pages/concepts/BCSPQR';
+import { DualRoutingConcept } from '@/pages/concepts/DualRouting';
+import { OrthogonalFlowConcept } from '@/pages/concepts/OrthogonalFlow';
 
 export default function App() {
   return (
@@ -30,6 +34,10 @@ export default function App() {
           <Route path="/demo/min-cost-flow" element={<MinCostFlowDemo />} />
           <Route path="/demo/orthogonal" element={<OrthogonalDemo />} />
           <Route path="/demo/planarization" element={<PlanarizationDemo />} />
+          <Route path="/concepts/rotation" element={<RotationConcept />} />
+          <Route path="/concepts/bc-spqr" element={<BCSPQRConcept />} />
+          <Route path="/concepts/dual-routing" element={<DualRoutingConcept />} />
+          <Route path="/concepts/orthogonal-flow" element={<OrthogonalFlowConcept />} />
           <Route path="/api" element={<Api />} />
         </Routes>
       </AppShell>
