@@ -25,6 +25,8 @@ async function mustFetch(url) {
   return { res, text };
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function mustInclude(hay, needle, label) {
   if (!hay.includes(needle)) throw new Error(`${label}: missing "${needle}"`);
 }
@@ -46,11 +48,24 @@ function mustHeaderContains(res, header, needle, label) {
   mustHeaderContains(home.res, 'cache-control', 'no-cache', 'Home headers');
 
   const healthUrl = b + '/healthz.json';
-  const health = await mustFetch(healthUrl);
   let parsed;
-  try { parsed = JSON.parse(health.text); } catch { throw new Error('healthz.json not valid JSON'); }
-  if (parsed.product !== 'TopoLoom') throw new Error('healthz.json missing product=TopoLoom');
-  mustHeaderContains(health.res, 'cache-control', 'max-age=60', 'healthz headers');
+  let healthRes;
+  const attempts = expectedSha ? 12 : 1;
+  for (let i = 0; i < attempts; i += 1) {
+    const health = await mustFetch(healthUrl);
+    healthRes = health.res;
+    try {
+      parsed = JSON.parse(health.text);
+    } catch {
+      throw new Error('healthz.json not valid JSON');
+    }
+    if (parsed.product !== 'TopoLoom') throw new Error('healthz.json missing product=TopoLoom');
+    if (!expectedSha || parsed.gitSha === expectedSha) break;
+    if (i < attempts - 1) await sleep(5000);
+  }
+
+  if (!parsed) throw new Error('healthz.json missing payload');
+  if (healthRes) mustHeaderContains(healthRes, 'cache-control', 'max-age=60', 'healthz headers');
 
   if (expectedSha && parsed.gitSha && parsed.gitSha !== expectedSha) {
     throw new Error(`healthz.gitSha mismatch: expected=${expectedSha} got=${parsed.gitSha}`);
