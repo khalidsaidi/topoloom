@@ -20,10 +20,14 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install
+      - run: pnpm -r typecheck
+      - run: pnpm -r lint
+      - run: pnpm -r test
       - run: pnpm -r build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: '${{ secrets.GITHUB_TOKEN }}'
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_TOPOLOOM_PROD_20260202_KH }}'
           projectId: topoloom-prod-20260202-kh
+          siteId: topoloom
           channelId: pr-${{ github.event.pull_request.number }}
