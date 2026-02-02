@@ -109,6 +109,9 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
             <option value="k4">K4</option>
             <option value="k5">K5</option>
             <option value="k33">K3,3</option>
+            <option value="cube">Cube</option>
+            <option value="grid">Grid 3x3</option>
+            <option value="randomPlanar">Random planar</option>
           </select>
         </div>
 
