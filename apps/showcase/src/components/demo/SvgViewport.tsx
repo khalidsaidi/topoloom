@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 import type { GraphNode } from '@/components/demo/graph-model';
@@ -19,16 +19,23 @@ export function SvgViewport({ nodes, edges, highlightedEdges, onNodeMove, classN
   const [panning, setPanning] = useState(false);
   const panStart = useRef<Point | null>(null);
   const nodeStart = useRef<Point | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
 
   const viewBox = useMemo(() => {
     return `${-200 + offset.x} ${-140 + offset.y} ${400 / scale} ${280 / scale}`;
   }, [offset, scale]);
 
-  const onWheel = (event: React.WheelEvent<SVGSVGElement>) => {
-    event.preventDefault();
-    const delta = event.deltaY > 0 ? 0.9 : 1.1;
-    setScale((prev) => Math.min(3, Math.max(0.5, prev * delta)));
-  };
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return undefined;
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const delta = event.deltaY > 0 ? 0.9 : 1.1;
+      setScale((prev) => Math.min(3, Math.max(0.5, prev * delta)));
+    };
+    svg.addEventListener('wheel', handleWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', handleWheel);
+  }, []);
 
   const onBackgroundDown = (event: React.PointerEvent<SVGSVGElement>) => {
     setPanning(true);
@@ -66,9 +73,9 @@ export function SvgViewport({ nodes, edges, highlightedEdges, onNodeMove, classN
   return (
     <div className={cn('h-[360px] w-full overflow-hidden rounded-xl border bg-background/70', className)}>
       <svg
+        ref={svgRef}
         viewBox={viewBox}
         className="h-full w-full"
-        onWheel={onWheel}
         onPointerDown={onBackgroundDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

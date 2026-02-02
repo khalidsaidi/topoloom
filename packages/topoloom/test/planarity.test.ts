@@ -6,10 +6,22 @@ import { buildHalfEdgeMesh, validateMesh } from '../src/embedding';
 
 const edgeListToGraph = (edges: Array<[number, number]>): GraphBuilder => {
   const builder = new GraphBuilder();
-  const max = edges.reduce((acc, [u, v]) => Math.max(acc, u, v), 0);
+  const max = edges.reduce((acc, [u, v]) => Math.max(acc, u, v), -1);
   for (let i = 0; i <= max; i += 1) builder.addVertex(i);
   for (const [u, v] of edges) builder.addEdge(u, v, false);
   return builder;
+};
+
+const gridGraph = (rows: number, cols: number) => {
+  const edges: Array<[number, number]> = [];
+  const id = (r: number, c: number) => r * cols + c;
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      if (c + 1 < cols) edges.push([id(r, c), id(r, c + 1)]);
+      if (r + 1 < rows) edges.push([id(r, c), id(r + 1, c)]);
+    }
+  }
+  return edgeListToGraph(edges).build();
 };
 
 describe('planarity', () => {
@@ -29,6 +41,17 @@ describe('planarity', () => {
       const validation = validateMesh(mesh);
       expect(validation.ok).toBe(true);
       expect(g.vertexCount() - g.edgeCount() + mesh.faces.length).toBe(2);
+    }
+  });
+
+  it('detects planar grids', () => {
+    const g = gridGraph(4, 4);
+    const result = testPlanarity(g);
+    expect(result.planar).toBe(true);
+    if (result.planar) {
+      const mesh = buildHalfEdgeMesh(g, result.embedding);
+      const validation = validateMesh(mesh);
+      expect(validation.ok).toBe(true);
     }
   });
 
@@ -61,5 +84,46 @@ describe('planarity', () => {
     const g = edgeListToGraph(edges).build();
     const result = testPlanarity(g);
     expect(result.planar).toBe(false);
+  });
+
+  it('detects subdivisions of K3,3 as nonplanar', () => {
+    const edges: Array<[number, number]> = [];
+    const left = [0, 1, 2];
+    const right = [3, 4, 5];
+    for (const u of left) {
+      for (const v of right) edges.push([u, v]);
+    }
+    // Subdivide edge (0,3) with vertex 6
+    const subdivided = edges.filter(([u, v]) => !(u === 0 && v === 3));
+    subdivided.push([0, 6]);
+    subdivided.push([6, 3]);
+    const g = edgeListToGraph(subdivided).build();
+    const result = testPlanarity(g);
+    expect(result.planar).toBe(false);
+  });
+
+  it('accepts multi-edges but rejects self-loops', () => {
+    const builder = new GraphBuilder();
+    const a = builder.addVertex('a');
+    const b = builder.addVertex('b');
+    builder.addEdge(a, b, false);
+    builder.addEdge(a, b, false);
+    const g = builder.build();
+    expect(testPlanarity(g).planar).toBe(true);
+
+    const loopBuilder = new GraphBuilder();
+    const x = loopBuilder.addVertex('x');
+    loopBuilder.addEdge(x, x, false);
+    const loopGraph = loopBuilder.build();
+    expect(() => testPlanarity(loopGraph)).toThrow(/self-loops/i);
+  });
+
+  it('rejects directed graphs', () => {
+    const builder = new GraphBuilder();
+    const a = builder.addVertex('a');
+    const b = builder.addVertex('b');
+    builder.addEdge(a, b, true);
+    const g = builder.build();
+    expect(() => testPlanarity(g)).toThrow(/undirected/i);
   });
 });

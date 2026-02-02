@@ -62,6 +62,14 @@ export type BiconnectedResult = {
 };
 
 export function biconnectedComponents(graph: Graph): BiconnectedResult {
+  for (const edge of graph.edges()) {
+    if (edge.directed) {
+      throw new Error('Biconnected components require an undirected graph.');
+    }
+    if (edge.u === edge.v) {
+      throw new Error('Biconnected components do not support self-loops.');
+    }
+  }
   const n = graph.vertexCount();
   const disc: number[] = Array(n).fill(-1);
   const low: number[] = Array(n).fill(0);
@@ -136,13 +144,14 @@ export function biconnectedComponents(graph: Graph): BiconnectedResult {
 
   const edgeToBlock = Array(graph.edgeCount()).fill(-1);
   blocks.forEach((block, idx) => {
+    block.sort((a, b) => a - b);
     for (const e of block) edgeToBlock[e] = idx;
   });
 
   return {
     blocks,
-    articulationPoints: [...articulationSet.values()],
-    bridges,
+    articulationPoints: [...articulationSet.values()].sort((a, b) => a - b),
+    bridges: [...bridges].sort((a, b) => a - b),
     edgeToBlock,
   };
 }
@@ -197,7 +206,8 @@ export function buildBCTree(graph: Graph, bcc?: BiconnectedResult): BCTree {
         if (cutNode !== undefined) incidentCuts.add(cutNode);
       }
     }
-    for (const cutNode of incidentCuts) {
+    const sortedCuts = [...incidentCuts].sort((a, b) => a - b);
+    for (const cutNode of sortedCuts) {
       adj[blockNode]?.push(cutNode);
       adj[cutNode]?.push(blockNode);
     }

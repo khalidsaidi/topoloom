@@ -13,6 +13,7 @@ export type FlowNetwork = {
 };
 
 export type FlowResult = {
+  feasible: boolean;
   flowByArc: number[];
   totalCost: number;
   potentials: number[];
@@ -163,7 +164,7 @@ export function minCostFlow(network: FlowNetwork): FlowResult {
   }
 
   if (flow < requiredFlow) {
-    throw new Error('No feasible flow for the given demands.');
+    return { feasible: false, flowByArc: [], totalCost: Infinity, potentials };
   }
 
   const flowByArc = network.arcs.map((_arc, idx) => {
@@ -173,5 +174,5 @@ export function minCostFlow(network: FlowNetwork): FlowResult {
     return sent + (lower[idx] ?? 0);
   });
 
-  return { flowByArc, totalCost: cost, potentials };
+  return { feasible: true, flowByArc, totalCost: cost, potentials };
 }
