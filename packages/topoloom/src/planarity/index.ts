@@ -1,5 +1,6 @@
-import { EdgeId, Graph, VertexId } from '../graph';
-import { RotationSystem, rotationFromAdjacency } from '../embedding';
+import type { EdgeId, Graph, VertexId } from '../graph';
+import { rotationFromAdjacency } from '../embedding';
+import type { RotationSystem } from '../embedding';
 
 export type PlanarityWitness = {
   type: 'K5' | 'K3,3';
@@ -67,6 +68,7 @@ function suppressDegreeTwo(simple: SimpleGraph): SimpleGraph {
       }
       if (degree === 1) {
         const [n] = neighbors;
+        if (n === undefined) continue;
         adj.get(n)?.delete(v);
         adj.delete(v);
         edgePaths.delete(edgeKey(v, n));
@@ -75,6 +77,7 @@ function suppressDegreeTwo(simple: SimpleGraph): SimpleGraph {
       }
       if (degree === 2) {
         const [a, b] = [...neighbors];
+        if (a === undefined || b === undefined) continue;
         if (a === b) {
           adj.delete(v);
           changed = true;
@@ -112,18 +115,29 @@ function findK5(simple: SimpleGraph): PlanarityWitness | null {
       for (let k = j + 1; k < verts.length; k += 1) {
         for (let l = k + 1; l < verts.length; l += 1) {
           for (let m = l + 1; m < verts.length; m += 1) {
-            const subset = [verts[i], verts[j], verts[k], verts[l], verts[m]];
+            const subset = [verts[i], verts[j], verts[k], verts[l], verts[m]].filter(
+              (v): v is VertexId => v !== undefined,
+            );
+            if (subset.length < 5) continue;
             let complete = true;
             const witnessEdges: EdgeId[] = [];
             for (let a = 0; a < subset.length; a += 1) {
               for (let b = a + 1; b < subset.length; b += 1) {
                 const u = subset[a];
                 const v = subset[b];
+                if (u === undefined || v === undefined) {
+                  complete = false;
+                  break;
+                }
                 if (!simple.adj.get(u)?.has(v)) {
                   complete = false;
                   break;
                 }
-                const path = simple.edgePaths.get(edgeKey(u, v)) ?? [];
+                const path = simple.edgePaths.get(edgeKey(u, v));
+                if (!path) {
+                  complete = false;
+                  break;
+                }
                 witnessEdges.push(...path);
               }
               if (!complete) break;
@@ -145,12 +159,16 @@ function findK33(simple: SimpleGraph): PlanarityWitness | null {
   for (let i = 0; i < verts.length; i += 1) {
     for (let j = i + 1; j < verts.length; j += 1) {
       for (let k = j + 1; k < verts.length; k += 1) {
-        const left = [verts[i], verts[j], verts[k]];
-        const remaining = verts.filter((v) => !left.includes(v));
+        const left = [verts[i], verts[j], verts[k]].filter((v): v is VertexId => v !== undefined);
+        if (left.length < 3) continue;
+        const remaining = verts.filter((v) => v !== undefined && !left.includes(v as VertexId));
         for (let a = 0; a < remaining.length; a += 1) {
           for (let b = a + 1; b < remaining.length; b += 1) {
             for (let c = b + 1; c < remaining.length; c += 1) {
-              const right = [remaining[a], remaining[b], remaining[c]];
+              const right = [remaining[a], remaining[b], remaining[c]].filter(
+                (v): v is VertexId => v !== undefined,
+              );
+              if (right.length < 3) continue;
               let complete = true;
               const witnessEdges: EdgeId[] = [];
               for (const u of left) {
@@ -159,7 +177,11 @@ function findK33(simple: SimpleGraph): PlanarityWitness | null {
                     complete = false;
                     break;
                   }
-                  const path = simple.edgePaths.get(edgeKey(u, v)) ?? [];
+                  const path = simple.edgePaths.get(edgeKey(u, v));
+                  if (!path) {
+                    complete = false;
+                    break;
+                  }
                   witnessEdges.push(...path);
                 }
                 if (!complete) break;
