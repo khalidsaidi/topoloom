@@ -72,7 +72,7 @@ export function DemoScaffold({
           </CardContent>
         </Card>
 
-        <div className="grid gap-6 lg:sticky lg:top-6 lg:h-[calc(100vh-8rem)]">
+        <div className="grid gap-6 lg:self-start lg:max-h-[calc(100vh-8rem)] lg:overflow-auto">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Input</CardTitle>
