@@ -16,8 +16,13 @@ const Node = ({ label, value }: { label: string; value: unknown }) => {
     const entries = Array.from(value.entries());
     return (
       <div className="ml-3">
-        <button className="text-xs text-foreground" onClick={() => setOpen(!open)}>
-          {open ? '▾' : '▸'} {label} (Map {entries.length})
+        <button
+          className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left text-xs text-foreground hover:bg-muted/50"
+          onClick={() => setOpen(!open)}
+          type="button"
+        >
+          <span className="w-3 text-center">{open ? '▾' : '▸'}</span>
+          <span className="flex-1">{label} (Map {entries.length})</span>
         </button>
         {open && (
           <div className="ml-3">
@@ -33,8 +38,13 @@ const Node = ({ label, value }: { label: string; value: unknown }) => {
     const entries = Array.from(value.values());
     return (
       <div className="ml-3">
-        <button className="text-xs text-foreground" onClick={() => setOpen(!open)}>
-          {open ? '▾' : '▸'} {label} (Set {entries.length})
+        <button
+          className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left text-xs text-foreground hover:bg-muted/50"
+          onClick={() => setOpen(!open)}
+          type="button"
+        >
+          <span className="w-3 text-center">{open ? '▾' : '▸'}</span>
+          <span className="flex-1">{label} (Set {entries.length})</span>
         </button>
         {open && (
           <div className="ml-3">
@@ -49,8 +59,13 @@ const Node = ({ label, value }: { label: string; value: unknown }) => {
   if (Array.isArray(value)) {
     return (
       <div className="ml-3">
-        <button className="text-xs text-foreground" onClick={() => setOpen(!open)}>
-          {open ? '▾' : '▸'} {label} [{value.length}]
+        <button
+          className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left text-xs text-foreground hover:bg-muted/50"
+          onClick={() => setOpen(!open)}
+          type="button"
+        >
+          <span className="w-3 text-center">{open ? '▾' : '▸'}</span>
+          <span className="flex-1">{label} [{value.length}]</span>
         </button>
         {open && (
           <div className="ml-3">
@@ -65,8 +80,13 @@ const Node = ({ label, value }: { label: string; value: unknown }) => {
   if (isObject(value)) {
     return (
       <div className="ml-3">
-        <button className="text-xs text-foreground" onClick={() => setOpen(!open)}>
-          {open ? '▾' : '▸'} {label}
+        <button
+          className="flex w-full items-center gap-2 rounded-md px-1 py-0.5 text-left text-xs text-foreground hover:bg-muted/50"
+          onClick={() => setOpen(!open)}
+          type="button"
+        >
+          <span className="w-3 text-center">{open ? '▾' : '▸'}</span>
+          <span className="flex-1">{label}</span>
         </button>
         {open && (
           <div className="ml-3">
