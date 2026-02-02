@@ -1,3 +1,4 @@
+# TopoLoom Firebase Hosting workflow (PR preview)
 name: Deploy to Firebase Hosting on PR
 
 on: pull_request

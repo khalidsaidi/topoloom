@@ -1,3 +1,4 @@
+# TopoLoom Firebase Hosting workflow (merge)
 name: Deploy to Firebase Hosting on merge
 
 on:
