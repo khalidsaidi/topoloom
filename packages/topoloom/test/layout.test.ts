@@ -21,10 +21,11 @@ describe('layout', () => {
 
     for (let i = 0; i < layout.edges.length; i += 1) {
       for (let j = i + 1; j < layout.edges.length; j += 1) {
-        const e1 = layout.edges[i];
-        const e2 = layout.edges[j];
+        const e1 = layout.edges[i]!;
+        const e2 = layout.edges[j]!;
         const [a1, a2] = e1.points;
         const [b1, b2] = e2.points;
+        if (!a1 || !a2 || !b1 || !b2) continue;
         if (sharedEndpoint(a1, b1) || sharedEndpoint(a1, b2) || sharedEndpoint(a2, b1) || sharedEndpoint(a2, b2)) {
           continue;
         }
@@ -49,6 +50,7 @@ describe('layout', () => {
       for (let i = 0; i < edge.points.length - 1; i += 1) {
         const p1 = edge.points[i];
         const p2 = edge.points[i + 1];
+        if (!p1 || !p2) continue;
         expect(p1.x === p2.x || p1.y === p2.y).toBe(true);
       }
     }
@@ -58,7 +60,7 @@ describe('layout', () => {
     const builder = new GraphBuilder();
     const nodes = Array.from({ length: 6 }, (_, i) => builder.addVertex(i));
     for (let i = 0; i < 3; i += 1) {
-      for (let j = 3; j < 6; j += 1) builder.addEdge(nodes[i], nodes[j], false);
+      for (let j = 3; j < 6; j += 1) builder.addEdge(nodes[i]!, nodes[j]!, false);
     }
     const g = builder.build();
     const result = planarizationLayout(g);

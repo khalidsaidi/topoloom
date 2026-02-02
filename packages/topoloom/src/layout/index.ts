@@ -1,5 +1,7 @@
-import { Graph, GraphBuilder, EdgeId, VertexId } from '../graph';
-import { HalfEdgeMesh, selectOuterFace, buildHalfEdgeMesh } from '../embedding';
+import { GraphBuilder } from '../graph';
+import type { Graph, EdgeId, VertexId } from '../graph';
+import { selectOuterFace, buildHalfEdgeMesh } from '../embedding';
+import type { HalfEdgeMesh } from '../embedding';
 import { routeEdgeFixedEmbedding } from '../dual';
 import { testPlanarity } from '../planarity';
 
@@ -50,6 +52,7 @@ function polygonArea(points: Point[]): number {
   for (let i = 0; i < points.length; i += 1) {
     const p1 = points[i];
     const p2 = points[(i + 1) % points.length];
+    if (!p1 || !p2) continue;
     area += p1.x * p2.y - p2.x * p1.y;
   }
   return Math.abs(area / 2);
@@ -59,8 +62,8 @@ export function planarStraightLine(mesh: HalfEdgeMesh): LayoutResult {
   const vertexCount = Math.max(...mesh.origin) + 1;
   const positions = new Map<VertexId, Point>();
   const outer = selectOuterFace(mesh);
-  const boundary = mesh.faces[outer].map((h) => mesh.origin[h]);
-  const uniqueBoundary = [...new Set(boundary)];
+  const boundary = (mesh.faces[outer] ?? []).map((h) => mesh.origin[h] ?? 0);
+  const uniqueBoundary = [...new Set(boundary)].filter((v) => v !== undefined);
   const radius = 10;
   const step = (2 * Math.PI) / uniqueBoundary.length;
 
@@ -77,21 +80,21 @@ export function planarStraightLine(mesh: HalfEdgeMesh): LayoutResult {
   for (let e = 0; e < mesh.halfEdgeCount / 2; e += 1) {
     const h0 = e * 2;
     const h1 = e * 2 + 1;
-    const u = mesh.origin[h0];
-    const v = mesh.origin[h1];
-    adj[u].push(v);
-    adj[v].push(u);
+    const u = mesh.origin[h0] ?? 0;
+    const v = mesh.origin[h1] ?? 0;
+    adj[u]?.push(v);
+    adj[v]?.push(u);
   }
 
   for (let iter = 0; iter < 200; iter += 1) {
     for (let v = 0; v < vertexCount; v += 1) {
       if (uniqueBoundary.includes(v)) continue;
-      const neighbors = adj[v];
+      const neighbors = adj[v] ?? [];
       if (neighbors.length === 0) continue;
       let x = 0;
       let y = 0;
       for (const n of neighbors) {
-        const p = positions.get(n) as Point;
+        const p = positions.get(n) ?? { x: 0, y: 0 };
         x += p.x;
         y += p.y;
       }
@@ -108,12 +111,12 @@ export function planarStraightLine(mesh: HalfEdgeMesh): LayoutResult {
   for (let e = 0; e < mesh.halfEdgeCount / 2; e += 1) {
     const h0 = e * 2;
     const h1 = e * 2 + 1;
-    const u = mesh.origin[h0];
-    const v = mesh.origin[h1];
-    edges.push({ edge: e, points: [positions.get(u) as Point, positions.get(v) as Point] });
+    const u = mesh.origin[h0] ?? 0;
+    const v = mesh.origin[h1] ?? 0;
+    edges.push({ edge: e, points: [positions.get(u) ?? { x: 0, y: 0 }, positions.get(v) ?? { x: 0, y: 0 }] });
   }
 
-  const boundaryPoints = uniqueBoundary.map((v) => positions.get(v) as Point);
+  const boundaryPoints = uniqueBoundary.map((v) => positions.get(v) ?? { x: 0, y: 0 });
   const area = polygonArea(boundaryPoints);
 
   return {
@@ -134,6 +137,7 @@ export function orthogonalLayout(mesh: HalfEdgeMesh): LayoutResult {
 
   for (const edge of base.edges) {
     const [p1, p2] = edge.points;
+    if (!p1 || !p2) continue;
     if (p1.x === p2.x || p1.y === p2.y) {
       edges.push(edge);
     } else {
@@ -171,7 +175,17 @@ export function planarizationLayout(graph: Graph): PlanarizationResult {
     for (const keptEdge of kept) builder.addEdge(keptEdge.u, keptEdge.v, false);
     builder.addEdge(edge.u, edge.v, false);
     const test = testPlanarity(builder.build());
-    if (test.planar) {\n+      kept.push({ u: edge.u, v: edge.v, id: edge.id });\n+    } else {\n+      remaining.push(edge.id);\n+    }\n+  }\n+\n+  const baseBuilder = new GraphBuilder();\n+  for (const v of graph.vertices()) baseBuilder.addVertex(v);\n+  for (const keptEdge of kept) baseBuilder.addEdge(keptEdge.u, keptEdge.v, false);\n+  const baseGraph = baseBuilder.build();
+    if (test.planar) {
+      kept.push({ u: edge.u, v: edge.v, id: edge.id });
+    } else {
+      remaining.push(edge.id);
+    }
+  }
+
+  const baseBuilder = new GraphBuilder();
+  for (const v of graph.vertices()) baseBuilder.addVertex(v);
+  for (const keptEdge of kept) baseBuilder.addEdge(keptEdge.u, keptEdge.v, false);
+  const baseGraph = baseBuilder.build();
   const baseEmbedding = testPlanarity(baseGraph);
   if (!baseEmbedding.planar) {
     throw new Error('Base planar subgraph should be planar');
