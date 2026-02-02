@@ -50,6 +50,7 @@ export function DualRoutingDemo() {
           <div className="flex gap-2">
             <select
               className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+              name="dualSource"
               value={u}
               onChange={(event) => setU(Number(event.target.value))}
             >
@@ -59,6 +60,7 @@ export function DualRoutingDemo() {
             </select>
             <select
               className="w-full rounded-md border bg-background px-2 py-1 text-xs"
+              name="dualTarget"
               value={v}
               onChange={(event) => setV(Number(event.target.value))}
             >
