@@ -12,13 +12,16 @@ import { Trash2 } from 'lucide-react';
 export type GraphEditorProps = {
   state: GraphState;
   onChange: (state: GraphState) => void;
+  onSelectNode?: (id: number | null) => void;
+  selectedNodeId?: number | null;
 };
 
-export function GraphEditor({ state, onChange }: GraphEditorProps) {
+export function GraphEditor({ state, onChange, onSelectNode, selectedNodeId }: GraphEditorProps) {
   const [source, setSource] = useState<number>(state.nodes[0]?.id ?? 0);
   const [target, setTarget] = useState<number>(state.nodes[1]?.id ?? 0);
   const [importText, setImportText] = useState('');
   const [dirty, setDirty] = useState(false);
+  const [pendingEdgeId, setPendingEdgeId] = useState<number | null>(null);
 
   const normalizeSelection = (
     nodes: Array<{ id: number }>,
@@ -54,6 +57,9 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
     setDirty(true);
     setSource(selection.source);
     setTarget(selection.target);
+    if (selectedNodeId === null) {
+      onSelectNode?.(id);
+    }
     toast.success(`Node ${id} added`);
     onChange({
       ...state,
@@ -77,6 +83,8 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
     const id = state.nextEdgeId;
     setDirty(true);
     toast.success(`Edge ${source} → ${target} added`);
+    setPendingEdgeId(id);
+    window.setTimeout(() => setPendingEdgeId(null), 2000);
     onChange({
       ...state,
       edges: [
@@ -210,6 +218,10 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
           <div className="mt-2 rounded-md border border-dashed px-2 py-1 text-[10px] text-muted-foreground">
             Selected edge: {source} → {target}
           </div>
+          <div className="mt-1 text-[10px] text-muted-foreground">
+            Tip: click a node card or node in the graph to highlight it.
+            {selectedNodeId !== null ? ` Selected node: ${selectedNodeId}.` : ''}
+          </div>
         </div>
       </div>
 
@@ -223,7 +235,17 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
           {state.nodes.map((node) => (
             <Card key={node.id}>
               <CardContent className="flex items-center justify-between p-2 text-xs">
-                <div className="font-medium text-foreground">Node {node.label}</div>
+                <button
+                  type="button"
+                  className={`rounded-md px-2 py-1 text-left text-xs font-medium transition ${
+                    selectedNodeId === node.id
+                      ? 'bg-emerald-100 text-emerald-900'
+                      : 'text-foreground hover:bg-muted/60'
+                  }`}
+                  onClick={() => onSelectNode?.(node.id)}
+                >
+                  Node {node.label}
+                </button>
                 <Button size="sm" variant="ghost" onClick={() => removeNode(node.id)}>
                   <Trash2 className="mr-1 h-3 w-3" /> Remove
                 </Button>
@@ -279,6 +301,11 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
           </DialogContent>
         </Dialog>
         <Button size="sm" variant="outline" onClick={exportJson}>Export JSON</Button>
+        {pendingEdgeId !== null && (
+          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700">
+            Edge {pendingEdgeId} added
+          </div>
+        )}
       </div>
     </div>
   );

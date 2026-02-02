@@ -10,6 +10,7 @@ export type SvgViewportProps = {
   highlightedEdges?: Set<number>;
   highlightedNodes?: Set<number>;
   onNodeMove?: (id: number, x: number, y: number) => void;
+  onNodeClick?: (id: number) => void;
   className?: string;
 };
 
@@ -19,6 +20,7 @@ export function SvgViewport({
   highlightedEdges,
   highlightedNodes,
   onNodeMove,
+  onNodeClick,
   className,
 }: SvgViewportProps) {
   const [scale, setScale] = useState(1);
@@ -99,6 +101,7 @@ export function SvgViewport({
 
   const startDrag = (event: React.PointerEvent, nodeId: number) => {
     event.stopPropagation();
+    if (onNodeClick) onNodeClick(nodeId);
     if (!onNodeMove) return;
     setDragging(nodeId);
     nodeStart.current = { x: event.clientX, y: event.clientY };

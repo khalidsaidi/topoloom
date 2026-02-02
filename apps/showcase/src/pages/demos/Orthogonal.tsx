@@ -20,6 +20,7 @@ export function OrthogonalDemo() {
   const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
 
   const run = () => {
     const start = performance.now();
@@ -57,6 +58,10 @@ export function OrthogonalDemo() {
 
   const previewEdges = useMemo<EdgePath[]>(() => edgePathsFromState(state), [state]);
   const edges = layout?.edges ?? previewEdges;
+  const highlightedNodes = useMemo(
+    () => (selectedNodeId === null ? undefined : new Set([selectedNodeId])),
+    [selectedNodeId],
+  );
 
   return (
     <DemoScaffold
@@ -70,13 +75,31 @@ export function OrthogonalDemo() {
       )}
       inputControls={
         <div className="space-y-4">
-          <GraphEditor state={state} onChange={setState} />
+          <GraphEditor
+            state={state}
+            onChange={setState}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
+          />
           <Button size="sm" onClick={run}>Compute orthogonal rep</Button>
         </div>
       }
       outputOverlay={
         <div className="space-y-3">
-          <SvgViewport nodes={nodes} edges={edges} />
+          <SvgViewport
+            nodes={nodes}
+            edges={edges}
+            highlightedNodes={highlightedNodes}
+            onNodeClick={(id) => setSelectedNodeId((prev) => (prev === id ? null : id))}
+            onNodeMove={(id, dx, dy) => {
+              setState((prev) => ({
+                ...prev,
+                nodes: prev.nodes.map((node) =>
+                  node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
+                ),
+              }));
+            }}
+          />
           <StatsPanel
             bends={layout?.stats.bends}
             area={layout?.stats.area}
