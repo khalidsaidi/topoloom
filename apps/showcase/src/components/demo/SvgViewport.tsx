@@ -80,7 +80,12 @@ export function SvgViewport({
   };
 
   return (
-    <div className={cn('h-[360px] w-full overflow-hidden rounded-xl border bg-background/70', className)}>
+    <div
+      className={cn(
+        'h-[320px] w-full overflow-hidden rounded-xl border bg-background/70 sm:h-[360px] md:h-[420px] lg:h-[520px]',
+        className,
+      )}
+    >
       <svg
         ref={svgRef}
         viewBox={viewBox}
