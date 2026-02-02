@@ -8,11 +8,19 @@ export type SvgViewportProps = {
   nodes: GraphNode[];
   edges: EdgePath[];
   highlightedEdges?: Set<number>;
+  highlightedNodes?: Set<number>;
   onNodeMove?: (id: number, x: number, y: number) => void;
   className?: string;
 };
 
-export function SvgViewport({ nodes, edges, highlightedEdges, onNodeMove, className }: SvgViewportProps) {
+export function SvgViewport({
+  nodes,
+  edges,
+  highlightedEdges,
+  highlightedNodes,
+  onNodeMove,
+  className,
+}: SvgViewportProps) {
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState<number | null>(null);
@@ -66,6 +74,7 @@ export function SvgViewport({ nodes, edges, highlightedEdges, onNodeMove, classN
 
   const startDrag = (event: React.PointerEvent, nodeId: number) => {
     event.stopPropagation();
+    if (!onNodeMove) return;
     setDragging(nodeId);
     nodeStart.current = { x: event.clientX, y: event.clientY };
   };
@@ -95,14 +104,18 @@ export function SvgViewport({ nodes, edges, highlightedEdges, onNodeMove, classN
             strokeWidth={1.6}
           />
         ))}
-        {nodes.map((node) => (
-          <g key={node.id} onPointerDown={(event) => startDrag(event, node.id)}>
-            <circle cx={node.x} cy={node.y} r={8} fill="#0f172a" />
-            <text x={node.x + 10} y={node.y - 10} fontSize={10} fill="#0f172a">
+        {nodes.map((node) => {
+          const highlighted = highlightedNodes?.has(node.id);
+          const fill = highlighted ? '#0ea5e9' : '#0f172a';
+          return (
+            <g key={node.id} onPointerDown={(event) => startDrag(event, node.id)}>
+              <circle cx={node.x} cy={node.y} r={8} fill={fill} />
+              <text x={node.x + 10} y={node.y - 10} fontSize={10} fill={fill}>
               {node.label}
-            </text>
-          </g>
-        ))}
+              </text>
+            </g>
+          );
+        })}
       </svg>
     </div>
   );
