@@ -1,0 +1,8 @@
+{
+  "labels": [0, 1, 2],
+  "edges": [
+    { "u": 0, "v": 1, "directed": false },
+    { "u": 1, "v": 2, "directed": false },
+    { "u": 2, "v": 0, "directed": false }
+  ]
+}

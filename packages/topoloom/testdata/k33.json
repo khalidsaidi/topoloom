@@ -1,0 +1,14 @@
+{
+  "labels": [0, 1, 2, 3, 4, 5],
+  "edges": [
+    { "u": 0, "v": 3, "directed": false },
+    { "u": 0, "v": 4, "directed": false },
+    { "u": 0, "v": 5, "directed": false },
+    { "u": 1, "v": 3, "directed": false },
+    { "u": 1, "v": 4, "directed": false },
+    { "u": 1, "v": 5, "directed": false },
+    { "u": 2, "v": 3, "directed": false },
+    { "u": 2, "v": 4, "directed": false },
+    { "u": 2, "v": 5, "directed": false }
+  ]
+}
