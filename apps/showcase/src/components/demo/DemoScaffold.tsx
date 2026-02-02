@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { GraphControls } from '@/components/demo/GraphControls';
 export type DemoScaffoldProps = {
   title: string;
   subtitle: string;
-  expectations: string[];
+  expectations: readonly string[];
   status?: ReactNode;
   inputControls?: ReactNode;
   outputOverlay?: ReactNode;
