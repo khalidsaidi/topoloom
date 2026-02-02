@@ -3,6 +3,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const targetDir = path.join(root, 'packages', 'topoloom', 'src');
+const ignores = [path.join(root, 'apps', 'showcase', 'public', 'api')];
 
 const patterns = [
   { name: '__todo', re: /\b__todo\b/ },
@@ -11,10 +12,14 @@ const patterns = [
 ];
 
 async function walk(dir) {
+  for (const ignore of ignores) {
+    if (dir.startsWith(ignore)) return [];
+  }
   const entries = await fs.readdir(dir, { withFileTypes: true });
   const files = [];
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
+    if (ignores.some((ignore) => full.startsWith(ignore))) continue;
     if (entry.isDirectory()) {
       files.push(...(await walk(full)));
     } else if (entry.isFile() && full.endsWith('.ts')) {

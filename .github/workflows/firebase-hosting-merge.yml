@@ -32,3 +32,5 @@ jobs:
           firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_TOPOLOOM_PROD_20260202_KH }}'
           channelId: live
           projectId: topoloom-prod-20260202-kh
+      - name: smoke-live
+        run: node scripts/smoke-live.mjs https://topoloom.web.app ${{ github.sha }}

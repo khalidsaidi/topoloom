@@ -1,0 +1,3 @@
+
+# Generated docs (dont clutter diffs)
+apps/showcase/public/api/** linguist-generated=true

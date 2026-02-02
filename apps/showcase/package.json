@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "node ../../scripts/write-build-info.mjs && tsc -b && vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
     "test": "echo \"showcase: no tests\"",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "smoke:live": "node ../../scripts/smoke-live.mjs https://topoloom.web.app"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
