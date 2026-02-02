@@ -10,13 +10,13 @@ const condensationHasCycle = (componentOf: number[], edges: Array<[number, numbe
   for (const [u, v] of edges) {
     const cu = componentOf[u];
     const cv = componentOf[v];
-    if (cu !== cv) adj[cu].push(cv);
+    if (cu !== cv) adj[cu]?.push(cv);
   }
 
   const state = Array(compCount).fill(0);
   const dfs = (v: number): boolean => {
     state[v] = 1;
-    for (const w of adj[v]) {
+    for (const w of adj[v] ?? []) {
       if (state[w] === 1) return true;
       if (state[w] === 0 && dfs(w)) return true;
     }
@@ -84,7 +84,10 @@ describe('dfs toolkit', () => {
         (n, m, rawEdges) => {
           const builder = new GraphBuilder();
           for (let i = 0; i < n; i += 1) builder.addVertex(i);
-          const edges = rawEdges.slice(0, m).map(([u, v]) => [u % n, v % n] as const);
+          const edges = rawEdges
+            .slice(0, m)
+            .map(([u, v]) => [u % n, v % n] as const)
+            .filter(([u, v]) => u !== v);
           for (const [u, v] of edges) builder.addEdge(u, v, false);
           const g = builder.build();
           const bcc = biconnectedComponents(g);

@@ -1,4 +1,4 @@
-import { Graph, EdgeId, VertexId } from '../graph';
+import type { Graph, EdgeId, VertexId } from '../graph';
 
 export type SCCResult = {
   components: VertexId[][];
@@ -27,9 +27,9 @@ export function sccTarjan(graph: Graph): SCCResult {
       const w = adj.to;
       if (index[w] === -1) {
         strongConnect(w);
-        lowlink[v] = Math.min(lowlink[v], lowlink[w]);
+        lowlink[v] = Math.min(lowlink[v], lowlink[w] ?? lowlink[v]);
       } else if (onStack[w]) {
-        lowlink[v] = Math.min(lowlink[v], index[w]);
+        lowlink[v] = Math.min(lowlink[v], index[w] ?? lowlink[v]);
       }
     }
 
@@ -66,6 +66,7 @@ export function biconnectedComponents(graph: Graph): BiconnectedResult {
   const disc: number[] = Array(n).fill(-1);
   const low: number[] = Array(n).fill(0);
   const parent: number[] = Array(n).fill(-1);
+  const parentEdge: number[] = Array(n).fill(-1);
   const visitedEdge: boolean[] = Array(graph.edgeCount()).fill(false);
   const edgeStack: EdgeId[] = [];
   const blocks: EdgeId[][] = [];
@@ -99,24 +100,25 @@ export function biconnectedComponents(graph: Graph): BiconnectedResult {
 
       if (disc[v] === -1) {
         parent[v] = u;
+        parentEdge[v] = e;
         childCount += 1;
         edgeStack.push(e);
         dfs(v);
-        low[u] = Math.min(low[u], low[v]);
+        low[u] = Math.min(low[u], low[v] ?? low[u]);
 
-        if (low[v] >= disc[u]) {
+        if ((low[v] ?? 0) >= disc[u]) {
           if (parent[u] !== -1 || childCount > 1) {
             articulationSet.add(u);
           }
           popBlockUntil(e);
         }
 
-        if (low[v] > disc[u]) {
+        if ((low[v] ?? 0) > disc[u]) {
           bridges.push(e);
         }
-      } else if (v !== parent[u]) {
-        low[u] = Math.min(low[u], disc[v]);
-        if (disc[v] < disc[u]) {
+      } else if (v !== parent[u] || e !== parentEdge[u]) {
+        low[u] = Math.min(low[u], disc[v] ?? low[u]);
+        if ((disc[v] ?? 0) < disc[u]) {
           edgeStack.push(e);
         }
       }
@@ -185,6 +187,7 @@ export function buildBCTree(graph: Graph, bcc?: BiconnectedResult): BCTree {
   // Build connections: block <-> cut if cut vertex is incident to a block edge
   result.blocks.forEach((block, blockId) => {
     const blockNode = blockIdToNode[blockId];
+    if (blockNode === undefined) return;
     const incidentCuts = new Set<number>();
     for (const edgeId of block) {
       const edge = graph.edge(edgeId);
@@ -195,8 +198,8 @@ export function buildBCTree(graph: Graph, bcc?: BiconnectedResult): BCTree {
       }
     }
     for (const cutNode of incidentCuts) {
-      adj[blockNode].push(cutNode);
-      adj[cutNode].push(blockNode);
+      adj[blockNode]?.push(cutNode);
+      adj[cutNode]?.push(blockNode);
     }
   });
 
