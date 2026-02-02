@@ -53,7 +53,7 @@
   "scripts": {
     "build": "tsup",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
