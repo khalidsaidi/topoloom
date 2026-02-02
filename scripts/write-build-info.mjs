@@ -11,7 +11,10 @@ function git(cmd) {
 }
 
 const repoRoot = git('git rev-parse --show-toplevel') || process.cwd();
-const outPath = path.join(repoRoot, 'apps/showcase/public/build-info.json');
+const outPaths = [
+  path.join(repoRoot, 'apps/showcase/public/build-info.json'),
+  path.join(repoRoot, 'apps/showcase/public/healthz.json'),
+];
 
 const sha = process.env.GITHUB_SHA || git('git rev-parse HEAD') || 'unknown';
 const ref = process.env.GITHUB_REF_NAME || git('git rev-parse --abbrev-ref HEAD') || 'unknown';
@@ -33,6 +36,8 @@ const info = {
   libraryVersion: libVersion,
 };
 
-fs.mkdirSync(path.dirname(outPath), { recursive: true });
-fs.writeFileSync(outPath, JSON.stringify(info, null, 2) + '\n', 'utf8');
-console.log(`Wrote ${outPath}:`, info);
+for (const outPath of outPaths) {
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  fs.writeFileSync(outPath, JSON.stringify(info, null, 2) + '\n', 'utf8');
+  console.log(`Wrote ${outPath}:`, info);
+}
