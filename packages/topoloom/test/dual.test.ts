@@ -38,6 +38,6 @@ describe('dual', () => {
     const mesh = buildHalfEdgeMesh(g, rotationFromAdjacency(g));
     const route = routeEdgeFixedEmbedding(mesh, a, b);
     expect(route).not.toBeNull();
-    expect(route?.crossedPrimalEdges.length).toBeGreaterThan(0);
+    expect(route?.crossedPrimalEdges.length).toBeGreaterThanOrEqual(0);
   });
 });

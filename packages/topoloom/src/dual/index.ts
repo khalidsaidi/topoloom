@@ -1,5 +1,6 @@
-import { GraphBuilder, EdgeId, VertexId } from '../graph';
-import { FaceId, HalfEdgeMesh } from '../embedding';
+import { GraphBuilder } from '../graph';
+import type { EdgeId, VertexId } from '../graph';
+import type { FaceId, HalfEdgeMesh } from '../embedding';
 
 export type DualGraph = {
   graph: ReturnType<GraphBuilder['build']>;
@@ -60,7 +61,9 @@ export function dualShortestPath(
   const popMin = (): { face: FaceId; d: number } | undefined => {
     let bestIndex = 0;
     for (let i = 1; i < queue.length; i += 1) {
-      if (queue[i].d < queue[bestIndex].d) bestIndex = i;
+      const current = queue[i];
+      const best = queue[bestIndex];
+      if (current && best && current.d < best.d) bestIndex = i;
     }
     return queue.splice(bestIndex, 1)[0];
   };
@@ -77,7 +80,7 @@ export function dualShortestPath(
     for (const adj of dual.graph.adjacency(u)) {
       const v = adj.to;
       const edgeId = adj.edge;
-      const primalEdge = dual.dualEdgeToPrimalEdge[edgeId];
+      const primalEdge = dual.dualEdgeToPrimalEdge[edgeId] ?? 0;
       const weight = weightFn(edgeId, primalEdge);
       const nd = dist[u] + weight;
       if (nd < dist[v]) {
@@ -104,11 +107,11 @@ export function dualShortestPath(
   let current = target;
   while (prevFace[current] !== null) {
     const e = prevEdge[current];
-    if (e === null) break;
+    if (e === null || e === undefined) break;
     dualEdges.push(e);
-    primalEdges.push(dual.dualEdgeToPrimalEdge[e]);
+    primalEdges.push(dual.dualEdgeToPrimalEdge[e] ?? 0);
     const p = prevFace[current];
-    if (p === null) break;
+    if (p === null || p === undefined) break;
     faces.push(p);
     current = p;
   }
