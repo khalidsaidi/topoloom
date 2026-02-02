@@ -28,10 +28,10 @@ type ResidualEdge = {
 type ResidualGraph = ResidualEdge[][];
 
 function addResidualEdge(graph: ResidualGraph, from: number, to: number, cap: number, cost: number) {
-  const forward: ResidualEdge = { to, rev: graph[to].length, cap, cost };
-  const backward: ResidualEdge = { to: from, rev: graph[from].length, cap: 0, cost: -cost };
-  graph[from].push(forward);
-  graph[to].push(backward);
+  const forward: ResidualEdge = { to, rev: graph[to]!.length, cap, cost };
+  const backward: ResidualEdge = { to: from, rev: graph[from]!.length, cap: 0, cost: -cost };
+  graph[from]!.push(forward);
+  graph[to]!.push(backward);
 }
 
 function bellmanFord(graph: ResidualGraph, source: number): number[] {
@@ -42,7 +42,7 @@ function bellmanFord(graph: ResidualGraph, source: number): number[] {
     let updated = false;
     for (let u = 0; u < n; u += 1) {
       if (dist[u] === Infinity) continue;
-      for (const edge of graph[u]) {
+      for (const edge of graph[u] ?? []) {
         if (edge.cap <= 0) continue;
         if (dist[edge.to] > dist[u] + edge.cost) {
           dist[edge.to] = dist[u] + edge.cost;
@@ -75,10 +75,10 @@ function dijkstra(graph: ResidualGraph, source: number, potentials: number[]) {
     if (u === -1) break;
     visited[u] = true;
 
-    for (let ei = 0; ei < graph[u].length; ei += 1) {
-      const edge = graph[u][ei];
+    for (let ei = 0; ei < (graph[u] ?? []).length; ei += 1) {
+      const edge = graph[u]![ei]!;
       if (edge.cap <= 0) continue;
-      const cost = edge.cost + potentials[u] - potentials[edge.to];
+      const cost = edge.cost + (potentials[u] ?? 0) - (potentials[edge.to] ?? 0);
       const nd = dist[u] + cost;
       if (nd < dist[edge.to]) {
         dist[edge.to] = nd;
@@ -95,13 +95,13 @@ export function minCostFlow(network: FlowNetwork): FlowResult {
   const n = network.nodeCount;
   const demands = network.demands ? [...network.demands] : Array(n).fill(0);
   const lower = network.arcs.map((arc) => arc.lower ?? 0);
-  const capacity = network.arcs.map((arc, idx) => arc.upper - lower[idx]);
+  const capacity = network.arcs.map((arc, idx) => arc.upper - (lower[idx] ?? 0));
 
   for (let i = 0; i < network.arcs.length; i += 1) {
-    const arc = network.arcs[i];
-    if (capacity[i] < 0) throw new Error(`Arc ${i} has upper < lower`);
-    demands[arc.from] -= lower[i];
-    demands[arc.to] += lower[i];
+    const arc = network.arcs[i]!;
+    if ((capacity[i] ?? 0) < 0) throw new Error(`Arc ${i} has upper < lower`);
+    demands[arc.from] -= lower[i] ?? 0;
+    demands[arc.to] += lower[i] ?? 0;
   }
 
   const superSource = n;
@@ -110,11 +110,11 @@ export function minCostFlow(network: FlowNetwork): FlowResult {
 
   const arcEdgeIndex: Array<{ node: number; edge: number }> = [];
   for (let i = 0; i < network.arcs.length; i += 1) {
-    const arc = network.arcs[i];
+    const arc = network.arcs[i]!;
     const from = arc.from;
     const to = arc.to;
-    const edgeIndex = graph[from].length;
-    addResidualEdge(graph, from, to, capacity[i], arc.cost);
+    const edgeIndex = graph[from]!.length;
+    addResidualEdge(graph, from, to, capacity[i] ?? 0, arc.cost);
     arcEdgeIndex[i] = { node: from, edge: edgeIndex };
   }
 
@@ -128,7 +128,7 @@ export function minCostFlow(network: FlowNetwork): FlowResult {
     }
   }
 
-  let potentials = bellmanFord(graph, superSource);
+  const potentials = bellmanFord(graph, superSource);
   let flow = 0;
   let cost = 0;
 
@@ -144,7 +144,7 @@ export function minCostFlow(network: FlowNetwork): FlowResult {
     for (let v = superSink; v !== superSource; v = prevNode[v]) {
       const u = prevNode[v];
       if (u === -1) break;
-      const edge = graph[u][prevEdge[v]];
+      const edge = graph[u]![prevEdge[v]!]!;
       aug = Math.min(aug, edge.cap);
     }
 
@@ -152,9 +152,10 @@ export function minCostFlow(network: FlowNetwork): FlowResult {
 
     for (let v = superSink; v !== superSource; v = prevNode[v]) {
       const u = prevNode[v];
-      const edge = graph[u][prevEdge[v]];
+      if (u === -1) break;
+      const edge = graph[u]![prevEdge[v]!]!;
       edge.cap -= aug;
-      graph[v][edge.rev].cap += aug;
+      graph[v]![edge.rev]!.cap += aug;
       cost += aug * edge.cost;
     }
 
@@ -165,11 +166,11 @@ export function minCostFlow(network: FlowNetwork): FlowResult {
     throw new Error('No feasible flow for the given demands.');
   }
 
-  const flowByArc = network.arcs.map((arc, idx) => {
-    const { node, edge } = arcEdgeIndex[idx];
-    const residualEdge = graph[node][edge];
-    const sent = capacity[idx] - residualEdge.cap;
-    return sent + lower[idx];
+  const flowByArc = network.arcs.map((_arc, idx) => {
+    const entry = arcEdgeIndex[idx]!;
+    const residualEdge = graph[entry.node]![entry.edge]!;
+    const sent = (capacity[idx] ?? 0) - residualEdge.cap;
+    return sent + (lower[idx] ?? 0);
   });
 
   return { flowByArc, totalCost: cost, potentials };
