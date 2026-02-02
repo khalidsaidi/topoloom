@@ -8,3 +8,4 @@ coverage
 .ai/secrets.env
 .ai/tmp
 .ai/artifacts
+.cursor
