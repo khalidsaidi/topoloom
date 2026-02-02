@@ -1,0 +1,8 @@
+{
+  "entryPoints": ["packages/topoloom/src/index.ts"],
+  "tsconfig": "packages/topoloom/tsconfig.docs.json",
+  "out": "apps/showcase/public/api",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "name": "TopoLoom API"
+}
