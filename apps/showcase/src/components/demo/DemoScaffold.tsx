@@ -34,39 +34,8 @@ export function DemoScaffold({
         <p className="max-w-3xl text-sm text-muted-foreground">{subtitle}</p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(260px,_340px)_minmax(0,_1fr)]">
-        <div className="grid gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Input</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {inputControls ?? <GraphControls />}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Data inspector</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {inspector ?? (
-                <ScrollArea className="h-[320px] rounded-lg border bg-muted/30 p-3">
-                  <pre className="text-xs text-muted-foreground">
-{`{
-  "status": "pending",
-  "rotationSystem": [],
-  "faces": [],
-  "notes": "Run a demo to populate JSON outputs."
-}`}
-                  </pre>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,_1fr)_minmax(260px,_360px)]">
+        <Card className="h-full">
           <CardHeader>
             <CardTitle className="text-base">Output visualization</CardTitle>
           </CardHeader>
@@ -74,7 +43,7 @@ export function DemoScaffold({
             {outputOverlay ? (
               <div>{outputOverlay}</div>
             ) : (
-              <div className="relative h-[320px] w-full overflow-hidden rounded-xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/60 sm:h-[360px] md:h-[420px] lg:h-[520px]">
+              <div className="relative h-[340px] w-full overflow-hidden rounded-xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/60 sm:h-[420px] md:h-[520px] lg:h-[62vh] xl:h-[68vh]">
                 <svg viewBox="0 0 400 260" className="h-full w-full">
                   <g stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.5">
                     <line x1="80" y1="60" x2="200" y2="40" />
@@ -102,6 +71,37 @@ export function DemoScaffold({
             )}
           </CardContent>
         </Card>
+
+        <div className="grid gap-6 lg:sticky lg:top-6 lg:h-[calc(100vh-8rem)]">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Input</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {inputControls ?? <GraphControls />}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Data inspector</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {inspector ?? (
+                <ScrollArea className="h-[280px] rounded-lg border bg-muted/30 p-3">
+                  <pre className="text-xs text-muted-foreground">
+{`{
+  "status": "pending",
+  "rotationSystem": [],
+  "faces": [],
+  "notes": "Run a demo to populate JSON outputs."
+}`}
+                  </pre>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Card>
