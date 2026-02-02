@@ -23,7 +23,9 @@ describe('property checks', () => {
           maxLength: 12,
         }),
         (n, rawEdges) => {
-          const edges = rawEdges.map(([u, v]) => [u % n, v % n] as const).filter(([u, v]) => u !== v);
+          const edges = rawEdges
+            .map(([u, v]) => [u % n, v % n] as [number, number])
+            .filter(([u, v]) => u !== v);
           const g = buildRandomGraph(n, edges).build();
           const mesh = buildHalfEdgeMesh(g, rotationFromAdjacency(g));
           const validation = validateMesh(mesh);
@@ -43,7 +45,9 @@ describe('property checks', () => {
           maxLength: 10,
         }),
         (n, rawEdges) => {
-          const edges = rawEdges.map(([u, v]) => [u % n, v % n] as const).filter(([u, v]) => u !== v);
+          const edges = rawEdges
+            .map(([u, v]) => [u % n, v % n] as [number, number])
+            .filter(([u, v]) => u !== v);
           const g = buildRandomGraph(n, edges).build();
           const mesh = buildHalfEdgeMesh(g, rotationFromAdjacency(g));
           const dual = buildDual(mesh);
@@ -51,6 +55,7 @@ describe('property checks', () => {
             const faces = dual.edgeFaces[e];
             const h0 = e * 2;
             const h1 = e * 2 + 1;
+            if (!faces) return;
             expect([faces.left, faces.right]).toContain(mesh.face[h0]);
             expect([faces.left, faces.right]).toContain(mesh.face[h1]);
           }
@@ -73,17 +78,17 @@ describe('property checks', () => {
         const result = minCostFlow({ nodeCount: n, arcs, demands });
         const flow = result.flowByArc;
         for (let i = 0; i < arcs.length; i += 1) {
-          expect(flow[i]).toBeGreaterThanOrEqual(arcs[i].lower ?? 0);
-          expect(flow[i]).toBeLessThanOrEqual(arcs[i].upper);
+          expect(flow[i]).toBeGreaterThanOrEqual(arcs[i]?.lower ?? 0);
+          expect(flow[i]).toBeLessThanOrEqual(arcs[i]!.upper);
         }
-        const balance = Array(n).fill(0);
+        const netOut = Array(n).fill(0);
         for (let i = 0; i < arcs.length; i += 1) {
-          const arc = arcs[i];
-          balance[arc.from] -= flow[i];
-          balance[arc.to] += flow[i];
+          const arc = arcs[i]!;
+          netOut[arc.from] += flow[i] ?? 0;
+          netOut[arc.to] -= flow[i] ?? 0;
         }
         for (let i = 0; i < n; i += 1) {
-          expect(balance[i]).toBe(demands[i]);
+          expect(netOut[i]).toBe(demands[i]);
         }
       }),
       { numRuns: 20 },
