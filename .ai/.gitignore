@@ -1,0 +1,4 @@
+*
+!.gitignore
+!README.md
+!secrets.env.example
