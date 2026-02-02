@@ -1,4 +1,4 @@
-import { EdgeId, Graph, VertexId } from '../graph';
+import type { EdgeId, Graph, VertexId } from '../graph';
 
 export type HalfEdgeId = number;
 export type FaceId = number;
@@ -67,19 +67,21 @@ export function buildHalfEdgeMesh(graph: Graph, rotation: RotationSystem): HalfE
     const cyclic = rotation.order[v] ?? [];
     if (cyclic.length === 0) continue;
     for (let i = 0; i < cyclic.length; i += 1) {
-      const ref = cyclic[i];
+      const ref = cyclic[i]!;
       const h = halfEdgeOf.get(`${ref.edge}:${v}`);
       if (h === undefined) {
         throw new Error(`Rotation system missing half-edge for vertex ${v} edge ${ref.edge}`);
       }
       const twinH = twin[h];
-      const nextRef = cyclic[(i + 1) % cyclic.length];
+      const nextRef = cyclic[(i + 1) % cyclic.length]!;
       const nextHalfEdge = halfEdgeOf.get(`${nextRef.edge}:${v}`);
       if (nextHalfEdge === undefined) {
         throw new Error(`Rotation system missing next half-edge for vertex ${v} edge ${nextRef.edge}`);
       }
-      next[twinH] = nextHalfEdge;
-      prev[nextHalfEdge] = twinH;
+      if (twinH !== undefined) {
+        next[twinH] = nextHalfEdge;
+        prev[nextHalfEdge] = twinH;
+      }
     }
   }
 
@@ -92,8 +94,10 @@ export function buildHalfEdgeMesh(graph: Graph, rotation: RotationSystem): HalfE
       if (face[current] !== -1) break;
       face[current] = faces.length;
       cycle.push(current);
-      current = next[current];
-      if (current === h || current === undefined) break;
+      const nextH = next[current];
+      if (nextH === undefined) break;
+      current = nextH;
+      if (current === h) break;
     }
     faces.push(cycle);
   }
@@ -113,8 +117,11 @@ export function validateMesh(mesh: HalfEdgeMesh): { ok: boolean; errors: string[
   const errors: string[] = [];
   for (let h = 0; h < mesh.halfEdgeCount; h += 1) {
     const t = mesh.twin[h];
-    if (mesh.twin[t] !== h) errors.push(`Twin mismatch at half-edge ${h}`);
-    if (mesh.next[mesh.prev[h]] !== h) errors.push(`Prev/next mismatch at half-edge ${h}`);
+    if (t === undefined || mesh.twin[t] !== h) errors.push(`Twin mismatch at half-edge ${h}`);
+    const prevH = mesh.prev[h];
+    if (prevH === undefined || mesh.next[prevH] !== h) {
+      errors.push(`Prev/next mismatch at half-edge ${h}`);
+    }
   }
   const seen = new Set<number>();
   mesh.faces.forEach((cycle, faceId) => {
@@ -147,9 +154,10 @@ export function selectOuterFace(mesh: HalfEdgeMesh, positions?: Map<VertexId, { 
     let area = 0;
     for (let i = 0; i < cycle.length; i += 1) {
       const h = cycle[i];
-      const v = mesh.origin[h];
-      const nextH = cycle[(i + 1) % cycle.length];
-      const w = mesh.origin[nextH];
+      const hId = h as number;
+      const v = (mesh.origin[hId] ?? 0) as VertexId;
+      const nextH = cycle[(i + 1) % cycle.length] as number;
+      const w = (mesh.origin[nextH] ?? 0) as VertexId;
       const p1 = positions.get(v);
       const p2 = positions.get(w);
       if (!p1 || !p2) continue;
