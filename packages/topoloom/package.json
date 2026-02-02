@@ -1,0 +1,62 @@
+{
+  "name": "topoloom",
+  "version": "0.1.0",
+  "description": "Topology-first graph drawing kernel for JS: embeddings, decompositions, dual routing, min-cost flow, and coordinate pipelines.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./graph": {
+      "types": "./dist/graph/index.d.ts",
+      "import": "./dist/graph/index.js"
+    },
+    "./dfs": {
+      "types": "./dist/dfs/index.d.ts",
+      "import": "./dist/dfs/index.js"
+    },
+    "./planarity": {
+      "types": "./dist/planarity/index.d.ts",
+      "import": "./dist/planarity/index.js"
+    },
+    "./embedding": {
+      "types": "./dist/embedding/index.d.ts",
+      "import": "./dist/embedding/index.js"
+    },
+    "./dual": {
+      "types": "./dist/dual/index.d.ts",
+      "import": "./dist/dual/index.js"
+    },
+    "./decomp": {
+      "types": "./dist/decomp/index.d.ts",
+      "import": "./dist/decomp/index.js"
+    },
+    "./order": {
+      "types": "./dist/order/index.d.ts",
+      "import": "./dist/order/index.js"
+    },
+    "./flow": {
+      "types": "./dist/flow/index.d.ts",
+      "import": "./dist/flow/index.js"
+    },
+    "./layout": {
+      "types": "./dist/layout/index.d.ts",
+      "import": "./dist/layout/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1"
+  }
+}
