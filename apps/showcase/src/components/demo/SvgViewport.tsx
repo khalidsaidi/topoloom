@@ -25,9 +25,12 @@ export function SvgViewport({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState<number | null>(null);
   const [panning, setPanning] = useState(false);
+  const [flashNodes, setFlashNodes] = useState<Set<number>>(new Set());
+  const [flashEdges, setFlashEdges] = useState<Set<number>>(new Set());
   const panStart = useRef<Point | null>(null);
   const nodeStart = useRef<Point | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const prevCounts = useRef({ nodes: nodes.length, edges: edges.length });
 
   const viewBox = useMemo(() => {
     return `${-200 + offset.x} ${-140 + offset.y} ${400 / scale} ${280 / scale}`;
@@ -44,6 +47,27 @@ export function SvgViewport({
     svg.addEventListener('wheel', handleWheel, { passive: false });
     return () => svg.removeEventListener('wheel', handleWheel);
   }, []);
+
+  useEffect(() => {
+    const prev = prevCounts.current;
+    if (nodes.length > prev.nodes) {
+      const added = nodes.slice(prev.nodes).map((node) => node.id);
+      if (added.length > 0) {
+        const next = new Set<number>(added);
+        setFlashNodes(next);
+        window.setTimeout(() => setFlashNodes(new Set()), 1500);
+      }
+    }
+    if (edges.length > prev.edges) {
+      const added = edges.slice(prev.edges).map((edge) => edge.edge);
+      if (added.length > 0) {
+        const next = new Set<number>(added);
+        setFlashEdges(next);
+        window.setTimeout(() => setFlashEdges(new Set()), 1500);
+      }
+    }
+    prevCounts.current = { nodes: nodes.length, edges: edges.length };
+  }, [nodes, edges]);
 
   const onBackgroundDown = (event: React.PointerEvent<SVGSVGElement>) => {
     setPanning(true);
@@ -82,7 +106,7 @@ export function SvgViewport({
   return (
     <div
       className={cn(
-        'h-[320px] w-full overflow-hidden rounded-xl border bg-background/70 sm:h-[360px] md:h-[420px] lg:h-[520px]',
+        'h-[340px] w-full overflow-hidden rounded-xl border bg-background/70 sm:h-[420px] md:h-[520px] lg:h-[62vh] xl:h-[68vh]',
         className,
       )}
     >
@@ -100,23 +124,29 @@ export function SvgViewport({
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />
-        {edges.map((edge) => (
-          <polyline
-            key={edge.edge}
-            points={edge.points.map((p) => `${p.x},${p.y}`).join(' ')}
-            fill="none"
-            stroke={highlightedEdges?.has(edge.edge) ? '#ef4444' : 'rgba(15,23,42,0.6)'}
-            strokeWidth={1.6}
-          />
-        ))}
+        {edges.map((edge) => {
+          const highlight = highlightedEdges?.has(edge.edge) ?? false;
+          const flash = flashEdges.has(edge.edge);
+          const stroke = flash ? '#22c55e' : highlight ? '#ef4444' : 'rgba(15,23,42,0.6)';
+          return (
+            <polyline
+              key={edge.edge}
+              points={edge.points.map((p) => `${p.x},${p.y}`).join(' ')}
+              fill="none"
+              stroke={stroke}
+              strokeWidth={flash ? 2.6 : 1.6}
+            />
+          );
+        })}
         {nodes.map((node) => {
           const highlighted = highlightedNodes?.has(node.id);
-          const fill = highlighted ? '#0ea5e9' : '#0f172a';
+          const flash = flashNodes.has(node.id);
+          const fill = flash ? '#22c55e' : highlighted ? '#0ea5e9' : '#0f172a';
           return (
             <g key={node.id} onPointerDown={(event) => startDrag(event, node.id)}>
-              <circle cx={node.x} cy={node.y} r={8} fill={fill} />
+              <circle cx={node.x} cy={node.y} r={flash ? 10 : 8} fill={fill} />
               <text x={node.x + 10} y={node.y - 10} fontSize={10} fill={fill}>
-              {node.label}
+                {node.label}
               </text>
             </g>
           );

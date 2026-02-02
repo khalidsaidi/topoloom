@@ -54,6 +54,7 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
     setDirty(true);
     setSource(selection.source);
     setTarget(selection.target);
+    toast.success(`Node ${id} added`);
     onChange({
       ...state,
       nodes: nextNodes,
@@ -75,6 +76,7 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
     if (source === target || state.nodes.length < 2) return;
     const id = state.nextEdgeId;
     setDirty(true);
+    toast.success(`Edge ${source} → ${target} added`);
     onChange({
       ...state,
       edges: [
@@ -207,9 +209,11 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
 
       <Separator />
 
-      <div className="grid gap-2">
-        <div className="text-[11px] uppercase text-muted-foreground">Nodes</div>
-        <div className="grid gap-2">
+      <details className="rounded-lg border bg-background/80">
+        <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold uppercase text-muted-foreground">
+          Nodes ({state.nodes.length})
+        </summary>
+        <div className="grid gap-2 p-3 pt-1">
           {state.nodes.map((node) => (
             <Card key={node.id}>
               <CardContent className="flex items-center justify-between p-2 text-xs">
@@ -221,11 +225,13 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
             </Card>
           ))}
         </div>
-      </div>
+      </details>
 
-      <div className="grid gap-2">
-        <div className="text-[11px] uppercase text-muted-foreground">Edges</div>
-        <div className="grid gap-2">
+      <details className="rounded-lg border bg-background/80">
+        <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold uppercase text-muted-foreground">
+          Edges ({state.edges.length})
+        </summary>
+        <div className="grid gap-2 p-3 pt-1">
           {state.edges.map((edge) => (
             <Card key={edge.id}>
               <CardContent className="flex items-center justify-between p-2 text-xs">
@@ -239,7 +245,7 @@ export function GraphEditor({ state, onChange }: GraphEditorProps) {
             </Card>
           ))}
         </div>
-      </div>
+      </details>
 
       <div className="flex flex-wrap gap-2">
         <Dialog>
