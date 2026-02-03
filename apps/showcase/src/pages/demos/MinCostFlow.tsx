@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { AutoComputeToggle } from '@/components/demo/AutoComputeToggle';
 import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
@@ -53,15 +54,23 @@ export function MinCostFlowDemo() {
   const [network, setNetwork] = useState<FlowPreset>(() => initialNetwork);
   const [result, setResult] = useState<FlowResult | null>(() => initialResult);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
+  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
 
   const currentSig = useMemo(() => JSON.stringify(network), [network]);
   const isStale = computedSig !== null && computedSig !== currentSig;
+  const shouldAutoRun = autoRun && (computedSig === null || isStale);
 
   const run = useCallback(() => {
     const res = minCostFlow(network);
     setResult(res);
     setComputedSig(currentSig);
   }, [currentSig, network]);
+
+  useEffect(() => {
+    if (!shouldAutoRun) return;
+    const handle = window.setTimeout(() => run(), 150);
+    return () => window.clearTimeout(handle);
+  }, [run, shouldAutoRun]);
 
   const handlePreset = (next: FlowPreset) => {
     setNetwork(next);
@@ -83,6 +92,7 @@ export function MinCostFlowDemo() {
             <Button size="sm" onClick={() => handlePreset(presets.simple)}>Load preset</Button>
             <Button size="sm" variant="outline" onClick={() => handlePreset(presets.lowerBounds)}>Lower bound preset</Button>
           </div>
+          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
           <Button size="sm" onClick={run}>Solve flow</Button>
         </div>
       }

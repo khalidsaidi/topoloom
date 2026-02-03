@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AutoComputeToggle } from '@/components/demo/AutoComputeToggle';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
 import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
@@ -188,6 +189,7 @@ export function SPQRDemo() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() =>
     typeof window === 'undefined' ? 'horizontal' : getLayoutMode(window.innerWidth),
   );
+  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
   const [panelRatio, setPanelRatio] = useState(() => {
     if (typeof window === 'undefined') {
       return initialMode === 'INSPECTING' ? DEFAULT_INSPECT_RATIO : DEFAULT_BUILD_RATIO;
@@ -209,6 +211,7 @@ export function SPQRDemo() {
   const [dragging, setDragging] = useState(false);
   const currentSig = useMemo(() => graphSignature(state), [state]);
   const isStale = computedSig !== null && computedSig !== currentSig;
+  const shouldAutoRun = autoRun && mode === 'BUILDING' && (computedSig === null || isStale);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -279,6 +282,12 @@ export function SPQRDemo() {
       toast.error(message);
     }
   }, [computeSpqr, currentSig, layoutMode, state, userResized]);
+
+  useEffect(() => {
+    if (!shouldAutoRun) return;
+    const handle = window.setTimeout(() => run(), 200);
+    return () => window.clearTimeout(handle);
+  }, [run, shouldAutoRun]);
 
   const applyPreset = useCallback((key: PresetKey) => {
     const preset = presets[key];
@@ -378,6 +387,7 @@ export function SPQRDemo() {
       return (
         <div className="space-y-4">
           <GraphEditor state={state} onChange={setState} />
+          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
           <Button size="sm" className="w-full" onClick={run}>
             Build SPQR tree
           </Button>
