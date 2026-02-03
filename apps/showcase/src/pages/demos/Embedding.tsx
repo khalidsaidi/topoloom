@@ -10,7 +10,7 @@ import { demoExpectations } from '@/data/demo-expectations';
 import { presets, toTopoGraph } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
-import { buildHalfEdgeMesh, rotationFromAdjacency, type HalfEdgeMesh } from 'topoloom/embedding';
+import { buildHalfEdgeMesh, rotationFromAdjacency, type HalfEdgeMesh } from '@khalidsaidi/topoloom/embedding';
 
 export function EmbeddingDemo() {
   const [state, setState] = useState<GraphState>(presets.squareDiagonal);

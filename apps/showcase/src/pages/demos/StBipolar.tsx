@@ -10,8 +10,8 @@ import { demoExpectations } from '@/data/demo-expectations';
 import { presets, toTopoGraph } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
-import { stNumbering, bipolarOrientation, type BipolarOrientation, type StNumbering } from 'topoloom/order';
-import { buildHalfEdgeMesh, rotationFromAdjacency } from 'topoloom/embedding';
+import { stNumbering, bipolarOrientation, type BipolarOrientation, type StNumbering } from '@khalidsaidi/topoloom/order';
+import { buildHalfEdgeMesh, rotationFromAdjacency } from '@khalidsaidi/topoloom/embedding';
 
 export function StBipolarDemo() {
   const [state, setState] = useState<GraphState>(presets.squareDiagonal);

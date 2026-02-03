@@ -9,7 +9,7 @@ import { demoExpectations } from '@/data/demo-expectations';
 import { createGraphState } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
-import { minCostFlow, type FlowResult } from 'topoloom/flow';
+import { minCostFlow, type FlowResult } from '@khalidsaidi/topoloom/flow';
 
 type FlowPreset = {
   nodeCount: number;
