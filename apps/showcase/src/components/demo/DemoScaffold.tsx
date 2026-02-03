@@ -37,7 +37,7 @@ export function DemoScaffold({
         {outputOverlay ? (
           <div>{outputOverlay}</div>
         ) : (
-          <div className="relative h-[420px] w-full overflow-hidden rounded-xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/60 sm:h-[520px] md:h-[620px] lg:h-[72vh] xl:h-[76vh]">
+          <div className="relative h-[460px] w-full overflow-hidden rounded-xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/60 sm:h-[560px] md:h-[640px] lg:h-[70vh] xl:h-[74vh]">
             <svg viewBox="0 0 400 260" className="h-full w-full">
               <g stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.5">
                 <line x1="80" y1="60" x2="200" y2="40" />
@@ -99,39 +99,41 @@ export function DemoScaffold({
         <p className="max-w-3xl text-sm text-muted-foreground">{subtitle}</p>
       </header>
 
-      <div data-testid="demo-capture" className="space-y-4 lg:min-h-[70vh]">
-        {outputCard}
-      </div>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,_1.9fr)_minmax(300px,_0.85fr)] xl:items-start">
+        <div data-testid="demo-capture" className="space-y-4">
+          {outputCard}
+        </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,_1.2fr)_minmax(0,_0.9fr)] lg:items-start">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Input</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {inputControls ?? <GraphControls />}
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Input</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {inputControls ?? <GraphControls />}
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Data inspector</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {inspector ?? (
-              <ScrollArea className="h-[280px] rounded-lg border bg-muted/30 p-3">
-                <pre className="text-xs text-muted-foreground">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Data inspector</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {inspector ?? (
+                <ScrollArea className="h-[280px] rounded-lg border bg-muted/30 p-3">
+                  <pre className="text-xs text-muted-foreground">
 {`{
   "status": "pending",
   "rotationSystem": [],
   "faces": [],
   "notes": "Run a demo to populate JSON outputs."
 }`}
-                </pre>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
+                  </pre>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Card>
