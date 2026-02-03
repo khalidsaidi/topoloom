@@ -45,10 +45,12 @@ Live demo: https://topoloom.web.app
 **Topology first, geometry second.** Layout pipelines should not recompute planarity or embeddings if the kernel already provides them.
 
 ## Complexity & limitations
-- Planarity testing uses a native core (WASM) and expects undirected graphs without self-loops.
-- SPQR decomposition expects biconnected, loopless, undirected graphs and returns virtual-edge skeletons.
-  The current implementation uses a split‑pair based decomposition with deterministic ordering. It is
-  correct for tested inputs but is not yet optimized to linear time.
+- Planarity testing uses a native core (WASM). By default it expects undirected, loopless graphs,
+  but `testPlanarity` can **treat directed edges as undirected** and **ignore self-loops** via options.
+- SPQR decomposition expects biconnected, loopless, undirected graphs. Use `spqrDecomposeSafe`
+  (largest block) or `spqrDecomposeAll` (forest) for non‑biconnected inputs. The implementation is
+  deterministic but not yet optimized to linear time.
+- Dual routing on graphs can fall back to a **maximal planar backbone** when requested.
 - Orthogonal layout assumes planar inputs; degree > 4 is handled via local expansion.
 
 ## Contributing

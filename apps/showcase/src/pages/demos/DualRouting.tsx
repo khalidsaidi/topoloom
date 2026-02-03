@@ -14,10 +14,8 @@ import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } f
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
-import { testPlanarity } from '@khalidsaidi/topoloom/planarity';
-import { buildHalfEdgeMesh } from '@khalidsaidi/topoloom/embedding';
-import { routeEdgeFixedEmbedding } from '@khalidsaidi/topoloom/dual';
-import { GraphBuilder, type Graph, type EdgeId } from '@khalidsaidi/topoloom/graph';
+import { useAutoCompute } from '@/lib/useAutoCompute';
+import { routeEdgeOnGraph } from '@khalidsaidi/topoloom/dual';
 
 export function DualRoutingDemo() {
   const { search } = useLocation();
@@ -28,64 +26,31 @@ export function DualRoutingDemo() {
   const initialV = initialState.nodes[initialState.nodes.length - 1]?.id ?? initialU;
   const initialSig = graphSignature(initialState);
 
-  const buildPlanarSubgraph = useCallback((graph: Graph) => {
-    const kept: Array<{ u: number; v: number; id: EdgeId }> = [];
-    const dropped: EdgeId[] = [];
-    for (const edge of graph.edges()) {
-      const builder = new GraphBuilder();
-      for (const v of graph.vertices()) builder.addVertex(graph.label(v));
-      for (const keptEdge of kept) builder.addEdge(keptEdge.u, keptEdge.v, false);
-      builder.addEdge(edge.u, edge.v, false);
-      const test = testPlanarity(builder.build());
-      if (test.planar) {
-        kept.push({ u: edge.u, v: edge.v, id: edge.id });
-      } else {
-        dropped.push(edge.id);
-      }
-    }
-    const baseBuilder = new GraphBuilder();
-    for (const v of graph.vertices()) baseBuilder.addVertex(graph.label(v));
-    for (const keptEdge of kept) baseBuilder.addEdge(keptEdge.u, keptEdge.v, false);
-    return { base: baseBuilder.build(), dropped };
-  }, []);
-
   const computeRoute = useCallback((graphState: GraphState, from: number, to: number) => {
     const graph = toTopoGraph(graphState, { forceUndirected: true });
-    let planarity = testPlanarity(graph);
-    let routingGraph = graph;
-    let repairNote: string | null = null;
-    if (!planarity.planar) {
-      const { base, dropped } = buildPlanarSubgraph(graph);
-      planarity = testPlanarity(base);
-      if (!planarity.planar) {
-        return { error: 'Unable to derive a planar embedding for routing.' };
-      }
-      routingGraph = base;
-      repairNote = `Nonplanar input: routing on maximal planar subgraph (dropped ${dropped.length} edge(s)).`;
-    }
-    const mesh = buildHalfEdgeMesh(routingGraph, planarity.embedding);
-    const route = routeEdgeFixedEmbedding(mesh, from, to);
-    if (!route) {
-      return { error: 'No dual route found for the selected vertices.' };
-    }
-    return repairNote ? { ...route, note: repairNote } : route;
-  }, [buildPlanarSubgraph]);
+    const route = routeEdgeOnGraph(graph, from, to, { planarityFallback: true });
+    if (!route) return { error: 'No dual route found for the selected vertices.' };
+    return route;
+  }, []);
   const initialResult = query.autorun ? computeRoute(initialState, initialU, initialV) : null;
   const [state, setState] = useState<GraphState>(() => initialState);
   const [u, setU] = useState<number>(initialU);
   const [v, setV] = useState<number>(initialV);
   const [result, setResult] = useState<
-    (ReturnType<typeof routeEdgeFixedEmbedding> & { note?: string }) | { error: string } | null
+    NonNullable<ReturnType<typeof routeEdgeOnGraph>> | { error: string } | null
   >(() => initialResult);
   const [highlighted, setHighlighted] = useState<Set<number>>(
     () => new Set((initialResult && 'crossedPrimalEdges' in initialResult ? initialResult.crossedPrimalEdges : []) ?? []),
   );
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
-  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
+  const autoState = useAutoCompute('topoloom:auto:dual-routing', query.autorun, {
+    size: state.nodes.length + state.edges.length,
+    maxSize: 150,
+  });
 
   const currentSig = useMemo(() => `${graphSignature(state)}|${u}:${v}`, [state, u, v]);
   const isStale = computedSig !== null && computedSig !== currentSig;
-  const shouldAutoRun = autoRun && (computedSig === null || isStale);
+  const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
     const route = computeRoute(state, u, v);
@@ -125,7 +90,12 @@ export function DualRoutingDemo() {
       inputControls={
         <div className="space-y-4">
           <GraphEditor state={state} onChange={handleStateChange} />
-          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
+          <AutoComputeToggle
+            value={autoState.value}
+            onChange={autoState.setValue}
+            disabled={autoState.disabled}
+            hint={autoState.disabled ? 'Auto recompute paused for large graphs.' : undefined}
+          />
           <div className="flex gap-2">
             <select
               className="w-full rounded-md border bg-background px-2 py-1 text-xs"

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { GraphBuilder } from '../src/graph';
 import { buildHalfEdgeMesh, rotationFromAdjacency } from '../src/embedding';
-import { buildDual, dualShortestPath, routeEdgeFixedEmbedding } from '../src/dual';
+import { buildDual, dualShortestPath, routeEdgeFixedEmbedding, routeEdgeOnGraph } from '../src/dual';
 
 describe('dual', () => {
   it('builds dual graph with face adjacency', () => {
@@ -39,5 +39,18 @@ describe('dual', () => {
     const route = routeEdgeFixedEmbedding(mesh, a, b);
     expect(route).not.toBeNull();
     expect(route?.crossedPrimalEdges.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it('routes on graphs with planar fallback', () => {
+    const builder = new GraphBuilder();
+    for (let i = 0; i < 5; i += 1) builder.addVertex(i);
+    for (let i = 0; i < 5; i += 1) {
+      for (let j = i + 1; j < 5; j += 1) builder.addEdge(i, j, false);
+    }
+    const g = builder.build();
+    const route = routeEdgeOnGraph(g, 0, 3, { planarityFallback: true });
+    expect(route).not.toBeNull();
+    expect(route?.crossedPrimalEdges.length).toBeGreaterThanOrEqual(0);
+    expect(route?.note).toMatch(/maximal planar/i);
   });
 });

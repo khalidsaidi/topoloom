@@ -14,6 +14,7 @@ import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } f
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
+import { useAutoCompute } from '@/lib/useAutoCompute';
 import { biconnectedComponents, buildBCTree, type BiconnectedResult, type BCTree } from '@khalidsaidi/topoloom/dfs';
 
 export function BCTreeDemo() {
@@ -34,11 +35,14 @@ export function BCTreeDemo() {
   const [tree, setTree] = useState<BCTree | null>(() => initial?.tree ?? null);
   const [selectedBlock, setSelectedBlock] = useState<number | null>(() => (initial ? 0 : null));
   const [computedSig, setComputedSig] = useState<string | null>(() => (initial ? initialSig : null));
-  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
+  const autoState = useAutoCompute('topoloom:auto:bc-tree', query.autorun, {
+    size: state.nodes.length + state.edges.length,
+    maxSize: 150,
+  });
 
   const currentSig = useMemo(() => graphSignature(state), [state]);
   const isStale = computedSig !== null && computedSig !== currentSig;
-  const shouldAutoRun = autoRun && (computedSig === null || isStale);
+  const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
     const graph = toTopoGraph(state, { forceUndirected: true });
@@ -75,7 +79,12 @@ export function BCTreeDemo() {
       inputControls={
         <div className="space-y-4">
           <GraphEditor state={state} onChange={handleStateChange} />
-          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
+          <AutoComputeToggle
+            value={autoState.value}
+            onChange={autoState.setValue}
+            disabled={autoState.disabled}
+            hint={autoState.disabled ? 'Auto recompute paused for large graphs.' : undefined}
+          />
           <Button size="sm" onClick={run}>Compute BC-tree</Button>
           {bcc ? (
             <div className="flex flex-wrap gap-2">

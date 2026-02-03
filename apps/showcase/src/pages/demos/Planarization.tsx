@@ -15,6 +15,7 @@ import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } f
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
+import { useAutoCompute } from '@/lib/useAutoCompute';
 import { planarizationLayout, type PlanarizationResult } from '@khalidsaidi/topoloom/layout';
 
 export function PlanarizationDemo() {
@@ -27,11 +28,14 @@ export function PlanarizationDemo() {
   const [state, setState] = useState<GraphState>(() => initialState);
   const [result, setResult] = useState<PlanarizationResult | null>(() => initialResult);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
-  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
+  const autoState = useAutoCompute('topoloom:auto:planarization', query.autorun, {
+    size: state.nodes.length + state.edges.length,
+    maxSize: 120,
+  });
 
   const currentSig = useMemo(() => graphSignature(state), [state]);
   const isStale = computedSig !== null && computedSig !== currentSig;
-  const shouldAutoRun = autoRun && (computedSig === null || isStale);
+  const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
     const graph = toTopoGraph(state, { forceUndirected: true });
@@ -76,7 +80,12 @@ export function PlanarizationDemo() {
       inputControls={
         <div className="space-y-4">
           <GraphEditor state={state} onChange={handleStateChange} />
-          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
+          <AutoComputeToggle
+            value={autoState.value}
+            onChange={autoState.setValue}
+            disabled={autoState.disabled}
+            hint={autoState.disabled ? 'Auto recompute paused for large graphs.' : undefined}
+          />
           <Button size="sm" onClick={run}>Run planarization</Button>
         </div>
       }
