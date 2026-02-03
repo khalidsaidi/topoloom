@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,24 +8,42 @@ import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, toTopoGraph } from '@/components/demo/graph-model';
+import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
+import { readDemoQuery } from '@/lib/demoQuery';
 import { biconnectedComponents, buildBCTree, type BiconnectedResult, type BCTree } from '@khalidsaidi/topoloom/dfs';
 
 export function BCTreeDemo() {
-  const [state, setState] = useState<GraphState>(presets.squareDiagonal);
-  const [bcc, setBcc] = useState<BiconnectedResult | null>(null);
-  const [tree, setTree] = useState<BCTree | null>(null);
-  const [selectedBlock, setSelectedBlock] = useState<number | null>(null);
+  const { search } = useLocation();
+  const query = readDemoQuery(search);
+  const presetKey = resolvePreset(query.preset, 'squareDiagonal' satisfies PresetKey);
+  const initialState = presets[presetKey];
+  const initial = (() => {
+    if (!query.autorun) return null;
+    const graph = toTopoGraph(initialState);
+    const bccRes = biconnectedComponents(graph);
+    const treeRes = buildBCTree(graph, bccRes);
+    return { bcc: bccRes, tree: treeRes };
+  })();
+  const [state, setState] = useState<GraphState>(() => initialState);
+  const [bcc, setBcc] = useState<BiconnectedResult | null>(() => initial?.bcc ?? null);
+  const [tree, setTree] = useState<BCTree | null>(() => initial?.tree ?? null);
+  const [selectedBlock, setSelectedBlock] = useState<number | null>(() => (initial ? 0 : null));
 
-  const run = () => {
+  const run = useCallback(() => {
     const graph = toTopoGraph(state);
     const bccRes = biconnectedComponents(graph);
     const treeRes = buildBCTree(graph, bccRes);
     setBcc(bccRes);
     setTree(treeRes);
     setSelectedBlock(0);
+  }, [state]);
+  const handleStateChange = (next: GraphState) => {
+    setState(next);
+    setBcc(null);
+    setTree(null);
+    setSelectedBlock(null);
   };
 
   const highlightedEdges = useMemo(() => {
@@ -37,10 +56,12 @@ export function BCTreeDemo() {
       title="BC-Tree"
       subtitle="Visualize biconnected blocks and articulation vertices as a bipartite tree."
       expectations={demoExpectations.bcTree}
+      embed={query.embed}
+      ready={Boolean(bcc)}
       status={<Badge variant="secondary">{bcc ? 'Computed' : 'Pending'}</Badge>}
       inputControls={
         <div className="space-y-4">
-          <GraphEditor state={state} onChange={setState} />
+          <GraphEditor state={state} onChange={handleStateChange} />
           <Button size="sm" onClick={run}>Compute BC-tree</Button>
           {bcc ? (
             <div className="flex flex-wrap gap-2">

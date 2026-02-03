@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { demoExpectations } from '@/data/demo-expectations';
 import { createGraphState } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
+import { readDemoQuery } from '@/lib/demoQuery';
 import { minCostFlow, type FlowResult } from '@khalidsaidi/topoloom/flow';
 
 type FlowPreset = {
@@ -41,12 +43,22 @@ const toGraphState = (network: FlowPreset): GraphState => {
 };
 
 export function MinCostFlowDemo() {
-  const [network, setNetwork] = useState<FlowPreset>(presets.simple);
-  const [result, setResult] = useState<FlowResult | null>(null);
+  const { search } = useLocation();
+  const query = readDemoQuery(search);
+  const presetKey = query.preset && query.preset in presets ? query.preset : 'simple';
+  const initialNetwork = presets[presetKey as keyof typeof presets] ?? presets.simple;
+  const initialResult = query.autorun ? minCostFlow(initialNetwork) : null;
+  const [network, setNetwork] = useState<FlowPreset>(() => initialNetwork);
+  const [result, setResult] = useState<FlowResult | null>(() => initialResult);
 
-  const run = () => {
+  const run = useCallback(() => {
     const res = minCostFlow(network);
     setResult(res);
+  }, [network]);
+
+  const handlePreset = (next: FlowPreset) => {
+    setNetwork(next);
+    setResult(null);
   };
 
   const graphState = useMemo(() => toGraphState(network), [network]);
@@ -56,12 +68,14 @@ export function MinCostFlowDemo() {
       title="Min-cost flow"
       subtitle="Solve network flow instances and inspect costs, potentials, and reduced costs."
       expectations={demoExpectations.minCostFlow}
+      embed={query.embed}
+      ready={Boolean(result)}
       status={<Badge variant="secondary">{result ? 'Solved' : 'Pending'}</Badge>}
       inputControls={
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => setNetwork(presets.simple)}>Load preset</Button>
-            <Button size="sm" variant="outline" onClick={() => setNetwork(presets.lowerBounds)}>Lower bound preset</Button>
+            <Button size="sm" onClick={() => handlePreset(presets.simple)}>Load preset</Button>
+            <Button size="sm" variant="outline" onClick={() => handlePreset(presets.lowerBounds)}>Lower bound preset</Button>
           </div>
           <Button size="sm" onClick={run}>Solve flow</Button>
         </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -8,9 +9,10 @@ import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, toTopoGraph } from '@/components/demo/graph-model';
+import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphNode, GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
+import { readDemoQuery } from '@/lib/demoQuery';
 import { spqrDecompose, flipSkeleton, permuteParallel, materializeEmbedding, type SPQRTree } from '@khalidsaidi/topoloom/decomp';
 
 type Mode = 'BUILDING' | 'INSPECTING';
@@ -112,10 +114,27 @@ const buildTreeLayout = (tree: SPQRTree) => {
 };
 
 export function SPQRDemo() {
-  const [state, setState] = useState<GraphState>(presets.squareDiagonal);
-  const [tree, setTree] = useState<SPQRTree | null>(null);
-  const [mode, setMode] = useState<Mode>('BUILDING');
-  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const { search } = useLocation();
+  const query = readDemoQuery(search);
+  const presetKey = resolvePreset(query.preset, 'squareDiagonal' satisfies PresetKey);
+  const initialState = presets[presetKey];
+  const initialTree = (() => {
+    if (!query.autorun) return null;
+    try {
+      const graph = toTopoGraph(initialState);
+      return spqrDecompose(graph);
+    } catch {
+      return null;
+    }
+  })();
+  const initialMode: Mode = initialTree ? 'INSPECTING' : 'BUILDING';
+  const [activePreset, setActivePreset] = useState<PresetKey>(presetKey);
+  const [state, setState] = useState<GraphState>(() => initialState);
+  const [tree, setTree] = useState<SPQRTree | null>(() => initialTree);
+  const [mode, setMode] = useState<Mode>(() => initialMode);
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(
+    () => initialTree?.nodes[0]?.id ?? null,
+  );
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
   const [rotationOverride, setRotationOverride] = useState<Map<number, unknown>>(new Map());
   const [error, setError] = useState<string | null>(null);
@@ -123,10 +142,16 @@ export function SPQRDemo() {
     typeof window === 'undefined' ? 'horizontal' : getLayoutMode(window.innerWidth),
   );
   const [panelRatio, setPanelRatio] = useState(() => {
-    if (typeof window === 'undefined') return DEFAULT_BUILD_RATIO;
+    if (typeof window === 'undefined') {
+      return initialMode === 'INSPECTING' ? DEFAULT_INSPECT_RATIO : DEFAULT_BUILD_RATIO;
+    }
     const stored = window.localStorage.getItem(STORAGE_KEY);
     const value = stored ? Number.parseFloat(stored) : NaN;
-    return Number.isFinite(value) ? clamp(value, 0.15, 0.85) : DEFAULT_BUILD_RATIO;
+    return Number.isFinite(value)
+      ? clamp(value, 0.15, 0.85)
+      : initialMode === 'INSPECTING'
+        ? DEFAULT_INSPECT_RATIO
+        : DEFAULT_BUILD_RATIO;
   });
   const [userResized, setUserResized] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -188,7 +213,7 @@ export function SPQRDemo() {
     };
   }, [dragging, layoutMode, updateRatio]);
 
-  const run = () => {
+  const run = useCallback(() => {
     try {
       const graph = toTopoGraph(state);
       const spqr = spqrDecompose(graph);
@@ -203,22 +228,30 @@ export function SPQRDemo() {
       setError(message);
       toast.error(message);
     }
-  };
+  }, [layoutMode, state, userResized]);
 
-  const resetGraph = (presetKey = 'squareDiagonal') => {
-    const preset = presets[presetKey as keyof typeof presets];
+  const applyPreset = useCallback((key: PresetKey) => {
+    const preset = presets[key];
     setState({
       ...preset,
       directed: state.directed,
       edges: preset.edges.map((edge) => ({ ...edge, directed: state.directed })),
     });
+    setActivePreset(key);
     setTree(null);
     setSelectedNodeId(null);
+    setRotationOverride(new Map());
+    setExpandedNodes(new Set());
     setMode('BUILDING');
     if (layoutMode === 'stacked') setMobileView('controls');
     setError(null);
     if (!userResized) setPanelRatio(DEFAULT_BUILD_RATIO);
+  }, [layoutMode, state.directed, userResized]);
+
+  const resetGraph = (key: PresetKey = 'squareDiagonal') => {
+    applyPreset(key);
   };
+
 
   const selectedNode = useMemo(
     () => tree?.nodes.find((node) => node.id === selectedNodeId) ?? null,
@@ -266,6 +299,7 @@ export function SPQRDemo() {
       rotation,
     };
   }, [tree, selectedNode, rotationOverride]);
+  const ready = Boolean(tree && tree.nodes.length);
 
   const gridStyle = useMemo(() => {
     if (layoutMode === 'horizontal') {
@@ -311,7 +345,8 @@ export function SPQRDemo() {
             className="w-full rounded-md border bg-background px-2 py-1 text-xs"
             id="spqr-preset"
             name="spqrPreset"
-            onChange={(event) => resetGraph(event.target.value)}
+            value={activePreset}
+            onChange={(event) => resetGraph(event.target.value as PresetKey)}
           >
             <option value="triangle">Triangle</option>
             <option value="squareDiagonal">Square + diagonal</option>
@@ -428,143 +463,148 @@ export function SPQRDemo() {
         </p>
       </header>
 
-      {layoutMode === 'stacked' ? (
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant={mobileView === 'controls' ? 'default' : 'outline'}
-              onClick={() => setMobileView('controls')}
-            >
-              Controls
-            </Button>
-            <Button
-              size="sm"
-              variant={mobileView === 'visual' ? 'default' : 'outline'}
-              onClick={() => setMobileView('visual')}
-            >
-              Visualization
-            </Button>
+      <div data-testid="demo-capture" className="space-y-6">
+        {layoutMode === 'stacked' ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant={mobileView === 'controls' ? 'default' : 'outline'}
+                onClick={() => setMobileView('controls')}
+              >
+                Controls
+              </Button>
+              <Button
+                size="sm"
+                variant={mobileView === 'visual' ? 'default' : 'outline'}
+                onClick={() => setMobileView('visual')}
+              >
+                Visualization
+              </Button>
+            </div>
+            {mobileView === 'controls' ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Controls</CardTitle>
+                </CardHeader>
+                <CardContent>{renderControls()}</CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Visualization</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {mode === 'BUILDING' ? (
+                    <div className="space-y-3">
+                      <SvgViewport
+                        nodes={state.nodes}
+                        edges={edges}
+                        onNodeMove={(id, dx, dy) => {
+                          setState((prev) => ({
+                            ...prev,
+                            nodes: prev.nodes.map((node) =>
+                              node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
+                            ),
+                          }));
+                        }}
+                      />
+                      {!state.nodes.length && (
+                        <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                          Build a graph on the left, then visualize here.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <SvgViewport nodes={treeLayout.nodes} edges={treeLayout.edges} highlightedNodes={highlightedNodes} />
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
-          {mobileView === 'controls' ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Controls</CardTitle>
-              </CardHeader>
-              <CardContent>{renderControls()}</CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Visualization</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {mode === 'BUILDING' ? (
-                  <div className="space-y-3">
-                    <SvgViewport
-                      nodes={state.nodes}
-                      edges={edges}
-                      onNodeMove={(id, dx, dy) => {
-                        setState((prev) => ({
-                          ...prev,
-                          nodes: prev.nodes.map((node) =>
-                            node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
-                          ),
-                        }));
-                      }}
-                    />
-                    {!state.nodes.length && (
-                      <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-                        Build a graph on the left, then visualize here.
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <SvgViewport nodes={treeLayout.nodes} edges={treeLayout.edges} highlightedNodes={highlightedNodes} />
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      ) : (
-        <div
-          ref={containerRef}
-          className={`grid h-[70vh] min-h-[560px] ${layoutMode === 'vertical' ? 'grid-rows-[auto_auto_auto]' : 'grid-cols-[auto_auto_auto]'}`}
-          style={gridStyle}
-        >
-          <section className="min-h-[0px] min-w-[250px]">
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="text-base">
-                  {mode === 'BUILDING' ? 'Input controls' : 'Inspector'}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="h-[calc(100%-3rem)] overflow-y-auto">
-                {renderControls()}
-              </CardContent>
-            </Card>
-          </section>
-
+        ) : (
           <div
-            className={dividerClass}
-            onPointerDown={(event) => {
-              setDragging(true);
-              updateRatio(event.clientX, event.clientY);
-            }}
-            role="separator"
-            aria-orientation={layoutMode === 'vertical' ? 'horizontal' : 'vertical'}
-            aria-valuenow={Math.round(panelRatio * 100)}
-          />
+            ref={containerRef}
+            className={`grid h-[70vh] min-h-[560px] ${layoutMode === 'vertical' ? 'grid-rows-[auto_auto_auto]' : 'grid-cols-[auto_auto_auto]'}`}
+            style={gridStyle}
+          >
+            <section className="min-h-[0px] min-w-[250px]">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    {mode === 'BUILDING' ? 'Input controls' : 'Inspector'}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="h-[calc(100%-3rem)] overflow-y-auto">
+                  {renderControls()}
+                </CardContent>
+              </Card>
+            </section>
 
-          <section className="min-h-[0px] min-w-[400px]">
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle className="text-base">Visualization</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {mode === 'BUILDING' ? (
-                  <div className="space-y-3">
-                    <SvgViewport
-                      nodes={state.nodes}
-                      edges={edges}
-                      onNodeMove={(id, dx, dy) => {
-                        setState((prev) => ({
-                          ...prev,
-                          nodes: prev.nodes.map((node) =>
-                            node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
-                          ),
-                        }));
-                      }}
-                    />
-                    {!state.nodes.length && (
-                      <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-                        Build a graph on the left, then visualize here.
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <SvgViewport nodes={treeLayout.nodes} edges={treeLayout.edges} highlightedNodes={highlightedNodes} />
-                )}
-              </CardContent>
-            </Card>
-          </section>
-        </div>
+            <div
+              className={dividerClass}
+              onPointerDown={(event) => {
+                setDragging(true);
+                updateRatio(event.clientX, event.clientY);
+              }}
+              role="separator"
+              aria-orientation={layoutMode === 'vertical' ? 'horizontal' : 'vertical'}
+              aria-valuenow={Math.round(panelRatio * 100)}
+            />
+
+            <section className="min-h-[0px] min-w-[400px]">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle className="text-base">Visualization</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {mode === 'BUILDING' ? (
+                    <div className="space-y-3">
+                      <SvgViewport
+                        nodes={state.nodes}
+                        edges={edges}
+                        onNodeMove={(id, dx, dy) => {
+                          setState((prev) => ({
+                            ...prev,
+                            nodes: prev.nodes.map((node) =>
+                              node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
+                            ),
+                          }));
+                        }}
+                      />
+                      {!state.nodes.length && (
+                        <div className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                          Build a graph on the left, then visualize here.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <SvgViewport nodes={treeLayout.nodes} edges={treeLayout.edges} highlightedNodes={highlightedNodes} />
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+          </div>
+        )}
+      </div>
+
+      {!query.embed && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">What you should expect</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
+              {demoExpectations.spqr.map((item) => (
+                <li key={item} className="rounded-lg border border-dashed px-3 py-2">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">What you should expect</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
-            {demoExpectations.spqr.map((item) => (
-              <li key={item} className="rounded-lg border border-dashed px-3 py-2">
-                {item}
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
+      <div data-testid="demo-ready" data-ready={ready ? '1' : '0'} />
     </div>
   );
 }

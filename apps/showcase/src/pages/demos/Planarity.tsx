@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,28 +9,48 @@ import { JsonInspector } from '@/components/demo/JsonInspector';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, toTopoGraph } from '@/components/demo/graph-model';
+import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
+import { readDemoQuery } from '@/lib/demoQuery';
 import { testPlanarity, type PlanarityResult } from '@khalidsaidi/topoloom/planarity';
 import { buildHalfEdgeMesh } from '@khalidsaidi/topoloom/embedding';
 
 export function PlanarityDemo() {
-  const [state, setState] = useState<GraphState>(presets.triangle);
-  const [result, setResult] = useState<(PlanarityResult & { faces?: number }) | null>(null);
-  const [witnessEdges, setWitnessEdges] = useState<Set<number>>(new Set());
+  const { search } = useLocation();
+  const query = readDemoQuery(search);
+  const presetKey = resolvePreset(query.preset, 'k33' satisfies PresetKey);
+  const initialState = presets[presetKey];
 
-  const runPlanarity = () => {
-    const graph = toTopoGraph(state);
+  const computePlanarity = (graphState: GraphState) => {
+    const graph = toTopoGraph(graphState);
     const res = testPlanarity(graph);
     if (res.planar) {
       const mesh = buildHalfEdgeMesh(graph, res.embedding);
-      setResult({ ...res, faces: mesh.faces.length });
-      setWitnessEdges(new Set());
-    } else {
-      setResult(res);
-      setWitnessEdges(new Set(res.witness.edges));
+      return { result: { ...res, faces: mesh.faces.length }, witness: new Set<number>() };
     }
+    return { result: res, witness: new Set(res.witness.edges) };
+  };
+
+  const initial = query.autorun ? computePlanarity(initialState) : null;
+  const [state, setState] = useState<GraphState>(() => initialState);
+  const [result, setResult] = useState<(PlanarityResult & { faces?: number }) | null>(
+    () => initial?.result ?? null,
+  );
+  const [witnessEdges, setWitnessEdges] = useState<Set<number>>(
+    () => initial?.witness ?? new Set(),
+  );
+
+  const runPlanarity = useCallback(() => {
+    const next = computePlanarity(state);
+    setResult(next.result);
+    setWitnessEdges(next.witness);
+  }, [state]);
+
+  const handleStateChange = (next: GraphState) => {
+    setState(next);
+    setResult(null);
+    setWitnessEdges(new Set());
   };
 
   const edges = useMemo(() => edgePathsFromState(state), [state]);
@@ -40,6 +61,8 @@ export function PlanarityDemo() {
       title="Planarity"
       subtitle="Test planarity, return a rotation system, or surface a Kuratowski witness for debugging."
       expectations={demoExpectations.planarity}
+      embed={query.embed}
+      ready={Boolean(result)}
       status={
         <Badge variant="secondary">
           {result ? (result.planar ? 'Planar' : 'Not planar') : 'Pending'}
@@ -47,7 +70,7 @@ export function PlanarityDemo() {
       }
       inputControls={
         <div className="space-y-4">
-          <GraphEditor state={state} onChange={setState} />
+          <GraphEditor state={state} onChange={handleStateChange} />
           <Button size="sm" onClick={runPlanarity}>Run planarity test</Button>
         </div>
       }

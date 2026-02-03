@@ -22,6 +22,13 @@ export type GraphState = {
   nextEdgeId: number;
 };
 
+export type PresetKey = keyof typeof presets;
+
+export const resolvePreset = (key: string | undefined, fallback: PresetKey): PresetKey => {
+  if (key && key in presets) return key as PresetKey;
+  return fallback;
+};
+
 export const createGraphState = (
   nodes: Array<{ id: number; label?: string; x?: number; y?: number }>,
   edges: Array<{ source: number; target: number; directed?: boolean }>,

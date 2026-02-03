@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,21 +9,32 @@ import { JsonInspector } from '@/components/demo/JsonInspector';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, toTopoGraph } from '@/components/demo/graph-model';
+import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
+import { readDemoQuery } from '@/lib/demoQuery';
 import { planarizationLayout, type PlanarizationResult } from '@khalidsaidi/topoloom/layout';
 
 export function PlanarizationDemo() {
-  const [state, setState] = useState<GraphState>(presets.k33);
-  const [result, setResult] = useState<PlanarizationResult | null>(null);
+  const { search } = useLocation();
+  const query = readDemoQuery(search);
+  const presetKey = resolvePreset(query.preset, 'k5' satisfies PresetKey);
+  const initialState = presets[presetKey];
+  const initialResult = query.autorun ? planarizationLayout(toTopoGraph(initialState)) : null;
+  const [state, setState] = useState<GraphState>(() => initialState);
+  const [result, setResult] = useState<PlanarizationResult | null>(() => initialResult);
 
-  const run = () => {
+  const run = useCallback(() => {
     const graph = toTopoGraph(state);
     const layout = planarizationLayout(graph);
     setResult(layout);
+  }, [state]);
+  const handleStateChange = (next: GraphState) => {
+    setState(next);
+    setResult(null);
   };
 
+  const previewEdges = useMemo(() => edgePathsFromState(state), [state]);
   const baseEdges = useMemo(() => result?.layout?.edges ?? [], [result]);
   const remainingEdges = useMemo(() => {
     if (!result) return [];
@@ -43,16 +55,22 @@ export function PlanarizationDemo() {
       title="Planarization pipeline"
       subtitle="Insert edges through the dual, add dummy crossings, and run planar layout."
       expectations={demoExpectations.planarization}
+      embed={query.embed}
+      ready={Boolean(result)}
       status={<Badge variant="secondary">{result ? 'Done' : 'Pending'}</Badge>}
       inputControls={
         <div className="space-y-4">
-          <GraphEditor state={state} onChange={setState} />
+          <GraphEditor state={state} onChange={handleStateChange} />
           <Button size="sm" onClick={run}>Run planarization</Button>
         </div>
       }
       outputOverlay={
         <div className="space-y-3">
-          <SvgViewport nodes={nodes} edges={[...baseEdges, ...remainingEdges]} highlightedEdges={new Set(result?.remainingEdges ?? [])} />
+          <SvgViewport
+            nodes={nodes}
+            edges={result ? [...baseEdges, ...remainingEdges] : previewEdges}
+            highlightedEdges={new Set(result?.remainingEdges ?? [])}
+          />
           <StatsPanel crossings={result?.remainingEdges?.length ?? 0} />
         </div>
       }

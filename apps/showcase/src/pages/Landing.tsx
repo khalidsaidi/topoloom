@@ -1,10 +1,19 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { SvgViewport } from '@/components/demo/SvgViewport';
+import { edgePathsFromState } from '@/components/demo/graph-utils';
+import { presets } from '@/components/demo/graph-model';
+import { readDemoQuery } from '@/lib/demoQuery';
 
 export function Landing() {
+  const { search } = useLocation();
+  const { embed } = readDemoQuery(search);
+  const heroState = presets.k4;
+  const heroEdges = edgePathsFromState(heroState);
+
   return (
     <div className="space-y-10">
       <section className="relative overflow-hidden rounded-3xl border bg-background/80 p-8 shadow-sm">
@@ -21,15 +30,23 @@ export function Landing() {
           </p>
           <div className="flex flex-wrap gap-3">
             <Button asChild size="lg">
-              <Link to="/getting-started">Get started</Link>
+              <Link to="/demo/planarity">Open showcase</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <Link to="/demo/planarity">Open the demos</Link>
+              <Link to="/api">API docs</Link>
             </Button>
           </div>
+          <div className="rounded-2xl border border-dashed bg-background/70 p-4">
+            <pre className="whitespace-pre-wrap text-xs text-muted-foreground">{`import { graph, planarity, embedding, layout } from '@khalidsaidi/topoloom';\n\nconst g = graph.fromEdgeList([\n  [0, 1],\n  [1, 2],\n  [2, 0],\n  [2, 3],\n  [3, 0],\n]);\n\nconst result = planarity.testPlanarity(g);\nconst mesh = embedding.buildHalfEdgeMesh(g, result.embedding);\nconst drawing = layout.planarStraightLine(mesh);\n`}</pre>
+          </div>
         </div>
+        <div className="relative mt-8" data-testid="demo-capture">
+          <SvgViewport nodes={heroState.nodes} edges={heroEdges} />
+        </div>
+        <div data-testid="demo-ready" data-ready="1" />
       </section>
 
+      {!embed && (
       <section className="grid gap-4 md:grid-cols-3">
         {[
           {
@@ -53,7 +70,9 @@ export function Landing() {
           </Card>
         ))}
       </section>
+      )}
 
+      {!embed && (
       <section className="rounded-2xl border border-dashed bg-muted/30 p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -67,6 +86,7 @@ export function Landing() {
           </Button>
         </div>
       </section>
+      )}
     </div>
   );
 }
