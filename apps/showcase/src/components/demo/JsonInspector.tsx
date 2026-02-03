@@ -116,6 +116,9 @@ const Node = ({
 export function JsonInspector({ data }: JsonInspectorProps) {
   return (
     <div className="h-[360px] overflow-auto rounded-lg border bg-muted/30 p-3">
+      <div className="mb-2 text-[10px] text-muted-foreground">
+        Click rows to expand/collapse.
+      </div>
       <Node label="root" value={data} defaultOpen />
     </div>
   );
