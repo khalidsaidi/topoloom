@@ -83,6 +83,7 @@ export function DualRoutingDemo() {
   };
 
   const edges = useMemo(() => edgePathsFromState(state), [state]);
+  const errorMessage = result && 'error' in result ? result.error : null;
 
   return (
     <DemoScaffold
@@ -139,6 +140,11 @@ export function DualRoutingDemo() {
         <div className="space-y-3">
           <RecomputeBanner visible={isStale} onRecompute={run} />
           <StatsPanel items={[{ label: 'Runtime (ms)', value: runtimeMs }]} />
+          {errorMessage ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {errorMessage}
+            </div>
+          ) : null}
           <SvgViewport
             nodes={state.nodes}
             edges={edges}
