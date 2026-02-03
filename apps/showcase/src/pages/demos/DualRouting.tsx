@@ -37,6 +37,7 @@ export function DualRoutingDemo() {
   const [state, setState] = useState<GraphState>(() => initialState);
   const [u, setU] = useState<number>(initialU);
   const [v, setV] = useState<number>(initialV);
+  const [pickMode, setPickMode] = useState<'source' | 'target'>('source');
   const [result, setResult] = useState<
     NonNullable<ReturnType<typeof routeEdgeOnGraph>> | { error: string } | null
   >(() => initialResult);
@@ -133,6 +134,23 @@ export function DualRoutingDemo() {
               ))}
             </select>
           </div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            <span>Click a node to set:</span>
+            <Button
+              size="sm"
+              variant={pickMode === 'source' ? 'default' : 'outline'}
+              onClick={() => setPickMode('source')}
+            >
+              Source
+            </Button>
+            <Button
+              size="sm"
+              variant={pickMode === 'target' ? 'default' : 'outline'}
+              onClick={() => setPickMode('target')}
+            >
+              Target
+            </Button>
+          </div>
           <Button size="sm" onClick={run}>Compute dual path</Button>
         </div>
       }
@@ -150,7 +168,16 @@ export function DualRoutingDemo() {
             edges={edges}
             highlightedEdges={highlighted}
             highlightedNodes={selectedNodeId !== null ? new Set([selectedNodeId]) : undefined}
-            onNodeClick={(id) => setSelectedNodeId((prev) => (prev === id ? null : id))}
+            onNodeClick={(id) => {
+              setSelectedNodeId((prev) => (prev === id ? null : id));
+              if (pickMode === 'source') {
+                setU(id);
+                setPickMode('target');
+              } else {
+                setV(id);
+                setPickMode('source');
+              }
+            }}
             onNodeMove={(id, dx, dy) => {
               setState((prev) => ({
                 ...prev,
