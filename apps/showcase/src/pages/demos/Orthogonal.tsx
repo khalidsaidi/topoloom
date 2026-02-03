@@ -144,6 +144,17 @@ export function OrthogonalDemo() {
       outputOverlay={
         <div className="space-y-3">
           <RecomputeBanner visible={isStale} onRecompute={run} />
+          <StatsPanel
+            bends={layout?.stats.bends}
+            area={layout?.stats.area}
+            crossings={layout?.stats.crossings}
+            runtimeMs={runtimeMs}
+          />
+          {error && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
           <SvgViewport
             nodes={nodes}
             edges={edges}
@@ -158,22 +169,11 @@ export function OrthogonalDemo() {
               }));
             }}
           />
-          <StatsPanel
-            bends={layout?.stats.bends}
-            area={layout?.stats.area}
-            crossings={layout?.stats.crossings}
-            runtimeMs={runtimeMs}
-          />
           {note ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
               {note}
             </div>
           ) : null}
-          {error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {error}
-            </div>
-          )}
         </div>
       }
       inspector={<JsonInspector data={layout ?? { status: error ? 'error' : 'pending', message: error }} />}

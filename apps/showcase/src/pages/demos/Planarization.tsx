@@ -101,12 +101,12 @@ export function PlanarizationDemo() {
       outputOverlay={
         <div className="space-y-3">
           <RecomputeBanner visible={isStale} onRecompute={run} />
+          <StatsPanel crossings={result?.remainingEdges?.length ?? 0} runtimeMs={runtimeMs} />
           <SvgViewport
             nodes={nodes}
             edges={showComputed && result ? [...baseEdges, ...remainingEdges] : previewEdges}
             highlightedEdges={showComputed ? new Set(result?.remainingEdges ?? []) : undefined}
           />
-          <StatsPanel crossings={result?.remainingEdges?.length ?? 0} runtimeMs={runtimeMs} />
         </div>
       }
       inspector={<JsonInspector data={result ?? { status: 'pending' }} />}

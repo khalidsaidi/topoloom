@@ -111,6 +111,12 @@ export function PlanarityDemo() {
       outputOverlay={
         <div className="space-y-3">
           <RecomputeBanner visible={isStale} onRecompute={runPlanarity} />
+          <StatsPanel
+            bends={0}
+            area={Math.round(result && result.planar ? result.faces ?? 0 : 0)}
+            crossings={witnessEdges.size}
+            runtimeMs={runtimeMs}
+          />
           <SvgViewport
             nodes={nodes}
             edges={edges}
@@ -123,12 +129,6 @@ export function PlanarityDemo() {
                 ),
               }));
             }}
-          />
-          <StatsPanel
-            bends={0}
-            area={Math.round(result && result.planar ? result.faces ?? 0 : 0)}
-            crossings={witnessEdges.size}
-            runtimeMs={runtimeMs}
           />
         </div>
       }
