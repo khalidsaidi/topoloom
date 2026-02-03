@@ -30,6 +30,7 @@ export function GraphEditor({
   const [target, setTarget] = useState<number>(state.nodes[1]?.id ?? 0);
   const [importText, setImportText] = useState('');
   const [dirty, setDirty] = useState(false);
+  const [pendingNodeId, setPendingNodeId] = useState<number | null>(null);
   const [pendingEdgeId, setPendingEdgeId] = useState<number | null>(null);
 
   const normalizeSelection = (
@@ -69,6 +70,8 @@ export function GraphEditor({
     if (selectedNodeId === null) {
       onSelectNode?.(id);
     }
+    setPendingNodeId(id);
+    window.setTimeout(() => setPendingNodeId(null), 2000);
     toast.success(`Node ${id} added`);
     onChange({
       ...state,
@@ -255,7 +258,10 @@ export function GraphEditor({
         </summary>
         <div className="grid gap-2 p-3 pt-1">
           {state.nodes.map((node) => (
-            <Card key={node.id}>
+            <Card
+              key={node.id}
+              className={pendingNodeId === node.id ? 'border-emerald-300 bg-emerald-50/40' : ''}
+            >
               <CardContent className="flex items-center justify-between p-2 text-xs">
                 <button
                   type="button"
@@ -283,7 +289,10 @@ export function GraphEditor({
         </summary>
         <div className="grid gap-2 p-3 pt-1">
           {state.edges.map((edge) => (
-            <Card key={edge.id}>
+            <Card
+              key={edge.id}
+              className={pendingEdgeId === edge.id ? 'border-emerald-300 bg-emerald-50/40' : ''}
+            >
               <CardContent className="flex items-center justify-between p-2 text-xs">
                 <div>
                   {edge.source} → {edge.target}

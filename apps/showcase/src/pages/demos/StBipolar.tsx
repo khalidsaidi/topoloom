@@ -38,6 +38,7 @@ export function StBipolarDemo() {
   const [state, setState] = useState<GraphState>(() => initialState);
   const [s, setS] = useState<number>(initialS);
   const [t, setT] = useState<number>(initialT);
+  const [pickMode, setPickMode] = useState<'s' | 't'>('s');
   const [result, setResult] = useState<{ numbering: StNumbering; bipolar: BipolarOrientation } | null>(
     () => initialResult,
   );
@@ -128,6 +129,23 @@ export function StBipolarDemo() {
               ))}
             </select>
           </div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+            <span>Click a node to set:</span>
+            <Button
+              size="sm"
+              variant={pickMode === 's' ? 'default' : 'outline'}
+              onClick={() => setPickMode('s')}
+            >
+              s
+            </Button>
+            <Button
+              size="sm"
+              variant={pickMode === 't' ? 'default' : 'outline'}
+              onClick={() => setPickMode('t')}
+            >
+              t
+            </Button>
+          </div>
           <Button size="sm" onClick={run}>Compute st + bipolar</Button>
         </div>
       }
@@ -139,7 +157,16 @@ export function StBipolarDemo() {
             nodes={state.nodes}
             edges={edges}
             highlightedNodes={selectedNodeId !== null ? new Set([selectedNodeId]) : undefined}
-            onNodeClick={(id) => setSelectedNodeId((prev) => (prev === id ? null : id))}
+            onNodeClick={(id) => {
+              setSelectedNodeId((prev) => (prev === id ? null : id));
+              if (pickMode === 's') {
+                setS(id);
+                setPickMode('t');
+              } else {
+                setT(id);
+                setPickMode('s');
+              }
+            }}
             onNodeMove={(id, dx, dy) => {
               setState((prev) => ({
                 ...prev,
