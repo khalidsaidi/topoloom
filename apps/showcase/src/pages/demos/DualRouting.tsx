@@ -39,6 +39,7 @@ export function DualRoutingDemo() {
   const [result, setResult] = useState<
     NonNullable<ReturnType<typeof routeEdgeOnGraph>> | { error: string } | null
   >(() => initialResult);
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [highlighted, setHighlighted] = useState<Set<number>>(
     () => new Set((initialResult && 'crossedPrimalEdges' in initialResult ? initialResult.crossedPrimalEdges : []) ?? []),
   );
@@ -92,6 +93,8 @@ export function DualRoutingDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
             allowDirected
             directedHint="Directions are ignored; nonplanar inputs route on a planar backbone."
           />
@@ -135,6 +138,8 @@ export function DualRoutingDemo() {
             nodes={state.nodes}
             edges={edges}
             highlightedEdges={highlighted}
+            highlightedNodes={selectedNodeId !== null ? new Set([selectedNodeId]) : undefined}
+            onNodeClick={(id) => setSelectedNodeId((prev) => (prev === id ? null : id))}
             onNodeMove={(id, dx, dy) => {
               setState((prev) => ({
                 ...prev,

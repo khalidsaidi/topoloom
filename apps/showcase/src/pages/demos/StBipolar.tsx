@@ -40,6 +40,7 @@ export function StBipolarDemo() {
   const [result, setResult] = useState<{ numbering: StNumbering; bipolar: BipolarOrientation } | null>(
     () => initialResult,
   );
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:st-bipolar', query.autorun, {
     size: state.nodes.length + state.edges.length,
@@ -88,6 +89,8 @@ export function StBipolarDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
             allowDirected
             directedHint="Directions are ignored for st-numbering and bipolar orientation."
           />
@@ -130,6 +133,8 @@ export function StBipolarDemo() {
           <SvgViewport
             nodes={state.nodes}
             edges={edges}
+            highlightedNodes={selectedNodeId !== null ? new Set([selectedNodeId]) : undefined}
+            onNodeClick={(id) => setSelectedNodeId((prev) => (prev === id ? null : id))}
             onNodeMove={(id, dx, dy) => {
               setState((prev) => ({
                 ...prev,

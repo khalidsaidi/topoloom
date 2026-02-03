@@ -54,6 +54,7 @@ export function MinCostFlowDemo() {
   const initialResult = query.autorun ? minCostFlow(initialNetwork) : null;
   const [network, setNetwork] = useState<FlowPreset>(() => initialNetwork);
   const [result, setResult] = useState<FlowResult | null>(() => initialResult);
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:min-cost-flow', query.autorun, {
     size: network.nodeCount + network.arcs.length,
@@ -111,6 +112,8 @@ export function MinCostFlowDemo() {
           <SvgViewport
             nodes={graphState.nodes}
             edges={edgePathsFromState(graphState)}
+            highlightedNodes={selectedNodeId !== null ? new Set([selectedNodeId]) : undefined}
+            onNodeClick={(id) => setSelectedNodeId((prev) => (prev === id ? null : id))}
           />
         </div>
       }

@@ -27,6 +27,7 @@ export function PlanarizationDemo() {
   const initialResult = query.autorun ? planarizationLayout(toTopoGraph(initialState, { forceUndirected: true })) : null;
   const [state, setState] = useState<GraphState>(() => initialState);
   const [result, setResult] = useState<PlanarizationResult | null>(() => initialResult);
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:planarization', query.autorun, {
@@ -86,6 +87,8 @@ export function PlanarizationDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
             allowDirected
             directedHint="Directions are ignored; planarization works on the undirected backbone."
           />
@@ -106,6 +109,8 @@ export function PlanarizationDemo() {
             nodes={nodes}
             edges={showComputed && result ? [...baseEdges, ...remainingEdges] : previewEdges}
             highlightedEdges={showComputed ? new Set(result?.remainingEdges ?? []) : undefined}
+            highlightedNodes={selectedNodeId !== null ? new Set([selectedNodeId]) : undefined}
+            onNodeClick={(id) => setSelectedNodeId((prev) => (prev === id ? null : id))}
           />
         </div>
       }

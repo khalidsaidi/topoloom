@@ -44,6 +44,7 @@ export function PlanarityDemo() {
   const [witnessEdges, setWitnessEdges] = useState<Set<number>>(
     () => initial?.witness ?? new Set(),
   );
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() =>
     initial ? initialSig : null,
@@ -96,6 +97,8 @@ export function PlanarityDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
             allowDirected
             directedHint="Directions are ignored for planarity checks."
           />
@@ -121,6 +124,8 @@ export function PlanarityDemo() {
             nodes={nodes}
             edges={edges}
             highlightedEdges={witnessEdges}
+            highlightedNodes={selectedNodeId !== null ? new Set([selectedNodeId]) : undefined}
+            onNodeClick={(id) => setSelectedNodeId((prev) => (prev === id ? null : id))}
             onNodeMove={(id, dx, dy) => {
               setState((prev) => ({
                 ...prev,
