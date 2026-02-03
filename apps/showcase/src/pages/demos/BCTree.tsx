@@ -9,6 +9,7 @@ import { JsonInspector } from '@/components/demo/JsonInspector';
 import { AutoComputeToggle } from '@/components/demo/AutoComputeToggle';
 import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
+import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
 import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
@@ -35,6 +36,7 @@ export function BCTreeDemo() {
   const [tree, setTree] = useState<BCTree | null>(() => initial?.tree ?? null);
   const [selectedBlock, setSelectedBlock] = useState<number | null>(() => (initial ? 0 : null));
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initial ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:bc-tree', query.autorun, {
     size: state.nodes.length + state.edges.length,
@@ -46,12 +48,14 @@ export function BCTreeDemo() {
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
+    const start = performance.now();
     const graph = toTopoGraph(state, { forceUndirected: true });
     const bccRes = biconnectedComponents(graph);
     const treeRes = buildBCTree(graph, bccRes);
     setBcc(bccRes);
     setTree(treeRes);
     setSelectedBlock(0);
+    setRuntimeMs(Math.round(performance.now() - start));
     setComputedSig(currentSig);
   }, [currentSig, state]);
 
@@ -113,6 +117,7 @@ export function BCTreeDemo() {
       outputOverlay={
         <div className="space-y-3">
           <RecomputeBanner visible={isStale} onRecompute={run} />
+          <StatsPanel items={[{ label: 'Runtime (ms)', value: runtimeMs }]} />
           <SvgViewport
             nodes={state.nodes}
             edges={edgePathsFromState(state)}

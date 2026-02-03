@@ -8,6 +8,7 @@ import { JsonInspector } from '@/components/demo/JsonInspector';
 import { AutoComputeToggle } from '@/components/demo/AutoComputeToggle';
 import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
+import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
 import { createGraphState } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
@@ -55,6 +56,7 @@ export function MinCostFlowDemo() {
   const [network, setNetwork] = useState<FlowPreset>(() => initialNetwork);
   const [result, setResult] = useState<FlowResult | null>(() => initialResult);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:min-cost-flow', query.autorun, {
     size: network.nodeCount + network.arcs.length,
@@ -66,8 +68,10 @@ export function MinCostFlowDemo() {
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
+    const start = performance.now();
     const res = minCostFlow(network);
     setResult(res);
+    setRuntimeMs(Math.round(performance.now() - start));
     setComputedSig(currentSig);
   }, [currentSig, network]);
 
@@ -109,6 +113,7 @@ export function MinCostFlowDemo() {
       outputOverlay={
         <div className="space-y-3">
           <RecomputeBanner visible={isStale} onRecompute={run} />
+          <StatsPanel items={[{ label: 'Runtime (ms)', value: runtimeMs }]} />
           <SvgViewport
             nodes={graphState.nodes}
             edges={edgePathsFromState(graphState)}

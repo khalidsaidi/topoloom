@@ -9,6 +9,7 @@ import { JsonInspector } from '@/components/demo/JsonInspector';
 import { AutoComputeToggle } from '@/components/demo/AutoComputeToggle';
 import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
+import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
 import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
@@ -40,6 +41,7 @@ export function DualRoutingDemo() {
     NonNullable<ReturnType<typeof routeEdgeOnGraph>> | { error: string } | null
   >(() => initialResult);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [highlighted, setHighlighted] = useState<Set<number>>(
     () => new Set((initialResult && 'crossedPrimalEdges' in initialResult ? initialResult.crossedPrimalEdges : []) ?? []),
   );
@@ -54,11 +56,13 @@ export function DualRoutingDemo() {
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
+    const start = performance.now();
     const route = computeRoute(state, u, v);
     setResult(route);
     setHighlighted(
       new Set('crossedPrimalEdges' in route ? route.crossedPrimalEdges ?? [] : []),
     );
+    setRuntimeMs(Math.round(performance.now() - start));
     setComputedSig(currentSig);
   }, [computeRoute, currentSig, state, u, v]);
 
@@ -134,6 +138,7 @@ export function DualRoutingDemo() {
       outputOverlay={
         <div className="space-y-3">
           <RecomputeBanner visible={isStale} onRecompute={run} />
+          <StatsPanel items={[{ label: 'Runtime (ms)', value: runtimeMs }]} />
           <SvgViewport
             nodes={state.nodes}
             edges={edges}
