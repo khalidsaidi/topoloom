@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
 import { createGraphState } from '@/components/demo/graph-model';
@@ -47,18 +48,23 @@ export function MinCostFlowDemo() {
   const query = readDemoQuery(search);
   const presetKey = query.preset && query.preset in presets ? query.preset : 'simple';
   const initialNetwork = presets[presetKey as keyof typeof presets] ?? presets.simple;
+  const initialSig = JSON.stringify(initialNetwork);
   const initialResult = query.autorun ? minCostFlow(initialNetwork) : null;
   const [network, setNetwork] = useState<FlowPreset>(() => initialNetwork);
   const [result, setResult] = useState<FlowResult | null>(() => initialResult);
+  const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
+
+  const currentSig = useMemo(() => JSON.stringify(network), [network]);
+  const isStale = computedSig !== null && computedSig !== currentSig;
 
   const run = useCallback(() => {
     const res = minCostFlow(network);
     setResult(res);
-  }, [network]);
+    setComputedSig(currentSig);
+  }, [currentSig, network]);
 
   const handlePreset = (next: FlowPreset) => {
     setNetwork(next);
-    setResult(null);
   };
 
   const graphState = useMemo(() => toGraphState(network), [network]);
@@ -81,10 +87,13 @@ export function MinCostFlowDemo() {
         </div>
       }
       outputOverlay={
-        <SvgViewport
-          nodes={graphState.nodes}
-          edges={edgePathsFromState(graphState)}
-        />
+        <div className="space-y-3">
+          <RecomputeBanner visible={isStale} onRecompute={run} />
+          <SvgViewport
+            nodes={graphState.nodes}
+            edges={edgePathsFromState(graphState)}
+          />
+        </div>
       }
       inspector={<JsonInspector data={result ?? network} />}
     />

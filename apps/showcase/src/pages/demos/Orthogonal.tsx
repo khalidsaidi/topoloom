@@ -7,10 +7,11 @@ import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
+import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { orthogonalLayout, type LayoutResult, type EdgePath } from '@khalidsaidi/topoloom/layout';
 import { buildHalfEdgeMesh, rotationFromAdjacency } from '@khalidsaidi/topoloom/embedding';
@@ -22,15 +23,10 @@ export function OrthogonalDemo() {
   const query = readDemoQuery(search);
   const presetKey = resolvePreset(query.preset, 'cube' satisfies PresetKey);
   const initialState = presets[presetKey];
+  const initialSig = graphSignature(initialState);
   const computeLayout = (graphState: GraphState) => {
-    if (graphState.directed) {
-      return {
-        layout: null,
-        error: 'Orthogonal layout currently supports undirected planar graphs only.',
-      };
-    }
     try {
-      const graph = toTopoGraph(graphState);
+      const graph = toTopoGraph(graphState, { forceUndirected: true });
       const mesh = buildHalfEdgeMesh(graph, rotationFromAdjacency(graph));
       const result = orthogonalLayout(mesh);
       return {
@@ -50,6 +46,10 @@ export function OrthogonalDemo() {
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(() => initialComputed.error);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [computedSig, setComputedSig] = useState<string | null>(() => (initialComputed.layout || initialComputed.error ? initialSig : null));
+
+  const currentSig = useMemo(() => graphSignature(state), [state]);
+  const isStale = computedSig !== null && computedSig !== currentSig;
 
   const run = useCallback(() => {
     const start = performance.now();
@@ -58,13 +58,11 @@ export function OrthogonalDemo() {
     setRuntimeMs(Math.round(performance.now() - start));
     setError(next.error);
     if (next.error) toast.error(next.error);
-  }, [state]);
+    setComputedSig(currentSig);
+  }, [currentSig, state]);
 
   const handleStateChange = (next: GraphState) => {
     setState(next);
-    setLayout(null);
-    setRuntimeMs(undefined);
-    setError(null);
   };
 
   const nodes = useMemo(() => {
@@ -107,6 +105,7 @@ export function OrthogonalDemo() {
       }
       outputOverlay={
         <div className="space-y-3">
+          <RecomputeBanner visible={isStale} onRecompute={run} />
           <SvgViewport
             nodes={nodes}
             edges={edges}

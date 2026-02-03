@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
+import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
@@ -20,18 +21,23 @@ export function PlanarizationDemo() {
   const query = readDemoQuery(search);
   const presetKey = resolvePreset(query.preset, 'k5' satisfies PresetKey);
   const initialState = presets[presetKey];
-  const initialResult = query.autorun ? planarizationLayout(toTopoGraph(initialState)) : null;
+  const initialSig = graphSignature(initialState);
+  const initialResult = query.autorun ? planarizationLayout(toTopoGraph(initialState, { forceUndirected: true })) : null;
   const [state, setState] = useState<GraphState>(() => initialState);
   const [result, setResult] = useState<PlanarizationResult | null>(() => initialResult);
+  const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
+
+  const currentSig = useMemo(() => graphSignature(state), [state]);
+  const isStale = computedSig !== null && computedSig !== currentSig;
 
   const run = useCallback(() => {
-    const graph = toTopoGraph(state);
+    const graph = toTopoGraph(state, { forceUndirected: true });
     const layout = planarizationLayout(graph);
     setResult(layout);
-  }, [state]);
+    setComputedSig(currentSig);
+  }, [currentSig, state]);
   const handleStateChange = (next: GraphState) => {
     setState(next);
-    setResult(null);
   };
 
   const previewEdges = useMemo(() => edgePathsFromState(state), [state]);
@@ -66,6 +72,7 @@ export function PlanarizationDemo() {
       }
       outputOverlay={
         <div className="space-y-3">
+          <RecomputeBanner visible={isStale} onRecompute={run} />
           <SvgViewport
             nodes={nodes}
             edges={result ? [...baseEdges, ...remainingEdges] : previewEdges}

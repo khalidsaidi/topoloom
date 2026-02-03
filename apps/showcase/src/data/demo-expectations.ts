@@ -24,7 +24,7 @@ export const demoExpectations = {
     'Blocks are reported as edge sets rather than vertex-induced subgraphs.',
   ],
   spqr: [
-    'Builds the SPQR tree for biconnected planar blocks.',
+    'Builds the SPQR tree for biconnected planar blocks (falls back to the largest block if needed).',
     'Exposes S/P/R/Q node types and skeleton graphs.',
     'Supports valid flips/permutes where allowed by topology.',
     'Does not select a final embedding unless asked.',
@@ -44,7 +44,7 @@ export const demoExpectations = {
     'Shortest paths are computed over faces, not vertices.',
     'Routes return crossed primal edges + face sequence.',
     'Weights are user-configurable and deterministic.',
-    'No automatic edge insertion is performed without explicit request.',
+    'Nonplanar inputs are reduced to a maximal planar backbone before routing.',
     'Multiple edges in the dual are preserved for multi-edge faces.',
   ],
   minCostFlow: [
@@ -58,7 +58,7 @@ export const demoExpectations = {
   orthogonal: [
     'Produces an orthogonal representation with minimized bends.',
     'Uses min-cost flow under Tamassia-style constraints.',
-    'Requires undirected planar input; directed graphs are rejected with a clear error.',
+    'Directed inputs are treated as undirected for geometry.',
     'Compaction yields integer grid coordinates.',
     'Reports bend counts and area metrics.',
     'No renderer-specific styling is applied.',

@@ -7,7 +7,7 @@ Embeddings, dual routing, decompositions, and coordinate pipelines — built for
 
 **Live Showcase:** https://topoloom.web.app/ • **API Docs:** https://topoloom.web.app/api/ • **GitHub:** https://github.com/khalidsaidi/topoloom
 
-<img src="https://raw.githubusercontent.com/khalidsaidi/topoloom/v0.2.6/docs/screenshots/npm/hero.png" alt="TopoLoom showcase" width="100%" />
+<img src="https://raw.githubusercontent.com/khalidsaidi/topoloom/v0.2.7/docs/screenshots/npm/hero.png" alt="TopoLoom showcase" width="100%" />
 
 </div>
 
@@ -37,12 +37,12 @@ npm i @khalidsaidi/topoloom
 ## What you can expect (visual)
 
 <p>
-  <img src="https://raw.githubusercontent.com/khalidsaidi/topoloom/v0.2.6/docs/screenshots/npm/planarity.png" alt="Planarity + embedding" width="49%" />
-  <img src="https://raw.githubusercontent.com/khalidsaidi/topoloom/v0.2.6/docs/screenshots/npm/dual.png" alt="Dual routing" width="49%" />
+  <img src="https://raw.githubusercontent.com/khalidsaidi/topoloom/v0.2.7/docs/screenshots/npm/planarity.png" alt="Planarity + embedding" width="49%" />
+  <img src="https://raw.githubusercontent.com/khalidsaidi/topoloom/v0.2.7/docs/screenshots/npm/dual.png" alt="Dual routing" width="49%" />
 </p>
 <p>
-  <img src="https://raw.githubusercontent.com/khalidsaidi/topoloom/v0.2.6/docs/screenshots/npm/orthogonal.png" alt="Orthogonal layout" width="49%" />
-  <img src="https://raw.githubusercontent.com/khalidsaidi/topoloom/v0.2.6/docs/screenshots/npm/planarization.png" alt="Planarization pipeline" width="49%" />
+  <img src="https://raw.githubusercontent.com/khalidsaidi/topoloom/v0.2.7/docs/screenshots/npm/orthogonal.png" alt="Orthogonal layout" width="49%" />
+  <img src="https://raw.githubusercontent.com/khalidsaidi/topoloom/v0.2.7/docs/screenshots/npm/planarization.png" alt="Planarization pipeline" width="49%" />
 </p>
 
 ---

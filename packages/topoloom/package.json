@@ -1,6 +1,6 @@
 {
   "name": "@khalidsaidi/topoloom",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Topology-first graph drawing kernel: embeddings, dual routing, decompositions, and coordinate pipelines.",
   "license": "MIT",
   "type": "module",

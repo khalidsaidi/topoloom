@@ -7,13 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
+import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphNode, GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
 import { spqrDecompose, flipSkeleton, permuteParallel, materializeEmbedding, type SPQRTree } from '@khalidsaidi/topoloom/decomp';
+import { biconnectedComponents } from '@khalidsaidi/topoloom/dfs';
+import { GraphBuilder, type Graph, type EdgeId } from '@khalidsaidi/topoloom/graph';
 
 type Mode = 'BUILDING' | 'INSPECTING';
 type LayoutMode = 'horizontal' | 'vertical' | 'stacked';
@@ -118,19 +121,62 @@ export function SPQRDemo() {
   const query = readDemoQuery(search);
   const presetKey = resolvePreset(query.preset, 'squareDiagonal' satisfies PresetKey);
   const initialState = presets[presetKey];
-  const initialTree = (() => {
-    if (!query.autorun) return null;
+  const initialSig = graphSignature(initialState);
+  const buildBiconnectedSubgraph = useCallback((graph: Graph, edges: EdgeId[]) => {
+    const vertices = new Set<number>();
+    edges.forEach((edgeId) => {
+      const edge = graph.edge(edgeId);
+      vertices.add(edge.u);
+      vertices.add(edge.v);
+    });
+    const builder = new GraphBuilder();
+    const idMap = new Map<number, number>();
+    Array.from(vertices.values()).sort((a, b) => a - b).forEach((v) => {
+      idMap.set(v, builder.addVertex(graph.label(v)));
+    });
+    edges.forEach((edgeId) => {
+      const edge = graph.edge(edgeId);
+      const u = idMap.get(edge.u);
+      const v = idMap.get(edge.v);
+      if (u !== undefined && v !== undefined) {
+        builder.addEdge(u, v, false);
+      }
+    });
+    return builder.build();
+  }, []);
+
+  const computeSpqr = useCallback((graphState: GraphState) => {
+    const graph = toTopoGraph(graphState, { forceUndirected: true });
+    const bcc = biconnectedComponents(graph);
+    let spqrGraph = graph;
+    let note: string | null = null;
+    if (bcc.blocks.length > 1 || bcc.articulationPoints.length > 0) {
+      let bestBlock = bcc.blocks[0] ?? [];
+      for (const block of bcc.blocks) {
+        if (block.length > bestBlock.length) bestBlock = block;
+      }
+      spqrGraph = buildBiconnectedSubgraph(graph, bestBlock);
+      note = `Input not biconnected: using largest block (${bestBlock.length} edge(s)).`;
+    }
+    return { tree: spqrDecompose(spqrGraph), note };
+  }, [buildBiconnectedSubgraph]);
+
+  const initialComputed = (() => {
+    if (!query.autorun) return { tree: null, note: null };
     try {
-      const graph = toTopoGraph(initialState);
-      return spqrDecompose(graph);
+      return computeSpqr(initialState);
     } catch {
-      return null;
+      return { tree: null, note: null };
     }
   })();
+  const initialTree = initialComputed.tree;
   const initialMode: Mode = initialTree ? 'INSPECTING' : 'BUILDING';
   const [activePreset, setActivePreset] = useState<PresetKey>(presetKey);
   const [state, setState] = useState<GraphState>(() => initialState);
   const [tree, setTree] = useState<SPQRTree | null>(() => initialTree);
+  const [computedSig, setComputedSig] = useState<string | null>(() =>
+    initialTree ? initialSig : null,
+  );
   const [mode, setMode] = useState<Mode>(() => initialMode);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(
     () => initialTree?.nodes[0]?.id ?? null,
@@ -138,6 +184,7 @@ export function SPQRDemo() {
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
   const [rotationOverride, setRotationOverride] = useState<Map<number, unknown>>(new Map());
   const [error, setError] = useState<string | null>(null);
+  const [sourceNote, setSourceNote] = useState<string | null>(() => initialComputed.note);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() =>
     typeof window === 'undefined' ? 'horizontal' : getLayoutMode(window.innerWidth),
   );
@@ -160,6 +207,8 @@ export function SPQRDemo() {
   const [mobileView, setMobileView] = useState<'controls' | 'visual'>('controls');
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
+  const currentSig = useMemo(() => graphSignature(state), [state]);
+  const isStale = computedSig !== null && computedSig !== currentSig;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -215,11 +264,12 @@ export function SPQRDemo() {
 
   const run = useCallback(() => {
     try {
-      const graph = toTopoGraph(state);
-      const spqr = spqrDecompose(graph);
+      const { tree: spqr, note } = computeSpqr(state);
       setTree(spqr);
       setSelectedNodeId(spqr.nodes[0]?.id ?? null);
+      setSourceNote(note);
       setMode('INSPECTING');
+      setComputedSig(currentSig);
       if (layoutMode === 'stacked') setMobileView('visual');
       setError(null);
       if (!userResized) setPanelRatio(DEFAULT_INSPECT_RATIO);
@@ -228,7 +278,7 @@ export function SPQRDemo() {
       setError(message);
       toast.error(message);
     }
-  }, [layoutMode, state, userResized]);
+  }, [computeSpqr, layoutMode, state, userResized]);
 
   const applyPreset = useCallback((key: PresetKey) => {
     const preset = presets[key];
@@ -240,8 +290,10 @@ export function SPQRDemo() {
     setActivePreset(key);
     setTree(null);
     setSelectedNodeId(null);
+    setSourceNote(null);
     setRotationOverride(new Map());
     setExpandedNodes(new Set());
+    setComputedSig(null);
     setMode('BUILDING');
     if (layoutMode === 'stacked') setMobileView('controls');
     setError(null);
@@ -297,8 +349,9 @@ export function SPQRDemo() {
       tree,
       selectedNode: node,
       rotation,
+      note: sourceNote,
     };
-  }, [tree, selectedNode, rotationOverride]);
+  }, [tree, selectedNode, rotationOverride, sourceNote]);
   const ready = Boolean(tree && tree.nodes.length);
 
   const gridStyle = useMemo(() => {
@@ -397,6 +450,11 @@ export function SPQRDemo() {
           </Button>
         </div>
         <div className="rounded-lg border bg-muted/30 p-3 text-xs">
+          {sourceNote ? (
+            <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-[11px] text-amber-900">
+              {sourceNote}
+            </div>
+          ) : null}
           <div className="text-[11px] uppercase text-muted-foreground">Data inspector</div>
           <div className="mt-2 space-y-2">
             {tree ? (
@@ -495,6 +553,7 @@ export function SPQRDemo() {
                   <CardTitle className="text-base">Visualization</CardTitle>
                 </CardHeader>
                 <CardContent>
+                  <RecomputeBanner visible={isStale} onRecompute={run} />
                   {mode === 'BUILDING' ? (
                     <div className="space-y-3">
                       <SvgViewport
@@ -558,6 +617,7 @@ export function SPQRDemo() {
                   <CardTitle className="text-base">Visualization</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                  <RecomputeBanner visible={isStale} onRecompute={run} />
                   {mode === 'BUILDING' ? (
                     <div className="space-y-3">
                       <SvgViewport

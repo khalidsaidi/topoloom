@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
+import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
@@ -21,9 +22,10 @@ export function PlanarityDemo() {
   const query = readDemoQuery(search);
   const presetKey = resolvePreset(query.preset, 'k33' satisfies PresetKey);
   const initialState = presets[presetKey];
+  const initialSig = graphSignature(initialState);
 
   const computePlanarity = (graphState: GraphState) => {
-    const graph = toTopoGraph(graphState);
+    const graph = toTopoGraph(graphState, { forceUndirected: true });
     const res = testPlanarity(graph);
     if (res.planar) {
       const mesh = buildHalfEdgeMesh(graph, res.embedding);
@@ -40,17 +42,22 @@ export function PlanarityDemo() {
   const [witnessEdges, setWitnessEdges] = useState<Set<number>>(
     () => initial?.witness ?? new Set(),
   );
+  const [computedSig, setComputedSig] = useState<string | null>(() =>
+    initial ? initialSig : null,
+  );
+
+  const currentSig = useMemo(() => graphSignature(state), [state]);
+  const isStale = computedSig !== null && computedSig !== currentSig;
 
   const runPlanarity = useCallback(() => {
     const next = computePlanarity(state);
     setResult(next.result);
     setWitnessEdges(next.witness);
-  }, [state]);
+    setComputedSig(currentSig);
+  }, [currentSig, state]);
 
   const handleStateChange = (next: GraphState) => {
     setState(next);
-    setResult(null);
-    setWitnessEdges(new Set());
   };
 
   const edges = useMemo(() => edgePathsFromState(state), [state]);
@@ -76,6 +83,7 @@ export function PlanarityDemo() {
       }
       outputOverlay={
         <div className="space-y-3">
+          <RecomputeBanner visible={isStale} onRecompute={runPlanarity} />
           <SvgViewport
             nodes={nodes}
             edges={edges}
