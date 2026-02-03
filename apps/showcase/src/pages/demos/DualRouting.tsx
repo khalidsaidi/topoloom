@@ -10,9 +10,9 @@ import { demoExpectations } from '@/data/demo-expectations';
 import { presets, toTopoGraph } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
-import { testPlanarity } from 'topoloom/planarity';
-import { buildHalfEdgeMesh } from 'topoloom/embedding';
-import { routeEdgeFixedEmbedding } from 'topoloom/dual';
+import { testPlanarity } from '@khalidsaidi/topoloom/planarity';
+import { buildHalfEdgeMesh } from '@khalidsaidi/topoloom/embedding';
+import { routeEdgeFixedEmbedding } from '@khalidsaidi/topoloom/dual';
 
 export function DualRoutingDemo() {
   const [state, setState] = useState<GraphState>(presets.squareDiagonal);

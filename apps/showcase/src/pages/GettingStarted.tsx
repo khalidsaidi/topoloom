@@ -18,8 +18,8 @@ export function GettingStarted() {
         </CardHeader>
         <CardContent>
           <pre className="rounded-lg bg-muted/40 p-4 text-xs">
-{`pnpm add topoloom
-# or npm i topoloom`}
+{`pnpm add @khalidsaidi/topoloom
+# or npm i @khalidsaidi/topoloom`}
           </pre>
         </CardContent>
       </Card>
@@ -30,7 +30,7 @@ export function GettingStarted() {
         </CardHeader>
         <CardContent>
           <pre className="rounded-lg bg-muted/40 p-4 text-xs">
-{`import { graph, planarity } from '/topoloom';
+{`import { graph, planarity } from '@khalidsaidi/topoloom';
 
 const g = graph.fromEdgeList([
   ['a', 'b'],

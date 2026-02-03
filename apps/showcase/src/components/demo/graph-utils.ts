@@ -1,4 +1,4 @@
-import type { EdgePath, Point } from 'topoloom/layout';
+import type { EdgePath, Point } from '@khalidsaidi/topoloom/layout';
 import type { GraphState } from '@/components/demo/graph-model';
 
 export const positionsFromState = (state: GraphState): Map<number, Point> => {

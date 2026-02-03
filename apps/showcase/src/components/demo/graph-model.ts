@@ -1,4 +1,4 @@
-import { GraphBuilder } from 'topoloom/graph';
+import { GraphBuilder } from '@khalidsaidi/topoloom/graph';
 
 export type GraphNode = {
   id: number;

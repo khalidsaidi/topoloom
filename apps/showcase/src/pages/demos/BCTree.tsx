@@ -10,7 +10,7 @@ import { demoExpectations } from '@/data/demo-expectations';
 import { presets, toTopoGraph } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
-import { biconnectedComponents, buildBCTree, type BiconnectedResult, type BCTree } from 'topoloom/dfs';
+import { biconnectedComponents, buildBCTree, type BiconnectedResult, type BCTree } from '@khalidsaidi/topoloom/dfs';
 
 export function BCTreeDemo() {
   const [state, setState] = useState<GraphState>(presets.squareDiagonal);

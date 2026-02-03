@@ -11,8 +11,8 @@ import { demoExpectations } from '@/data/demo-expectations';
 import { presets, toTopoGraph } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
-import { testPlanarity, type PlanarityResult } from 'topoloom/planarity';
-import { buildHalfEdgeMesh } from 'topoloom/embedding';
+import { testPlanarity, type PlanarityResult } from '@khalidsaidi/topoloom/planarity';
+import { buildHalfEdgeMesh } from '@khalidsaidi/topoloom/embedding';
 
 export function PlanarityDemo() {
   const [state, setState] = useState<GraphState>(presets.triangle);

@@ -11,7 +11,7 @@ import { demoExpectations } from '@/data/demo-expectations';
 import { presets, toTopoGraph } from '@/components/demo/graph-model';
 import type { GraphNode, GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
-import { spqrDecompose, flipSkeleton, permuteParallel, materializeEmbedding, type SPQRTree } from 'topoloom/decomp';
+import { spqrDecompose, flipSkeleton, permuteParallel, materializeEmbedding, type SPQRTree } from '@khalidsaidi/topoloom/decomp';
 
 type Mode = 'BUILDING' | 'INSPECTING';
 type LayoutMode = 'horizontal' | 'vertical' | 'stacked';

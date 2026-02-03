@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 import type { GraphNode } from '@/components/demo/graph-model';
-import type { Point, EdgePath } from 'topoloom/layout';
+import type { Point, EdgePath } from '@khalidsaidi/topoloom/layout';
 
 export type SvgViewportProps = {
   nodes: GraphNode[];

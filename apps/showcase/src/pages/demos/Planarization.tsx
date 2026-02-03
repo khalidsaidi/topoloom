@@ -11,7 +11,7 @@ import { demoExpectations } from '@/data/demo-expectations';
 import { presets, toTopoGraph } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
-import { planarizationLayout, type PlanarizationResult } from 'topoloom/layout';
+import { planarizationLayout, type PlanarizationResult } from '@khalidsaidi/topoloom/layout';
 
 export function PlanarizationDemo() {
   const [state, setState] = useState<GraphState>(presets.k33);

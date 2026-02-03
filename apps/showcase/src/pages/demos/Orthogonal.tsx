@@ -11,8 +11,8 @@ import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
 import { presets, toTopoGraph } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
-import { orthogonalLayout, type LayoutResult, type EdgePath } from 'topoloom/layout';
-import { buildHalfEdgeMesh, rotationFromAdjacency } from 'topoloom/embedding';
+import { orthogonalLayout, type LayoutResult, type EdgePath } from '@khalidsaidi/topoloom/layout';
+import { buildHalfEdgeMesh, rotationFromAdjacency } from '@khalidsaidi/topoloom/embedding';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 
 export function OrthogonalDemo() {

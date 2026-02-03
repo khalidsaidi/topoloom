@@ -11,7 +11,7 @@
 
 ## Quick start
 ```ts
-import { graph, planarity, embedding, layout } from '/topoloom';
+import { graph, planarity, embedding, layout } from '@khalidsaidi/topoloom';
 
 const g = graph.fromEdgeList([
   ['a', 'b'],

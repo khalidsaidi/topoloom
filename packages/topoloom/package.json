@@ -1,12 +1,14 @@
 {
   "name": "@khalidsaidi/topoloom",
-  "version": "0.2.4",
-  "description": "Topology-first graph drawing kernel for JS: embeddings, decompositions, dual routing, min-cost flow, and coordinate pipelines.",
+  "version": "0.2.5",
+  "description": "Topology-first graph drawing kernel: embeddings, dual routing, decompositions, and coordinate pipelines.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -62,5 +64,30 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "homepage": "https://topoloom.web.app/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khalidsaidi/topoloom.git"
+  },
+  "bugs": {
+    "url": "https://github.com/khalidsaidi/topoloom/issues"
+  },
+  "keywords": [
+    "graph",
+    "graph-layout",
+    "graph-drawing",
+    "graph-visualization",
+    "planarity",
+    "planar-embedding",
+    "rotation-system",
+    "half-edge",
+    "dual-graph",
+    "spqr",
+    "biconnected",
+    "st-numbering",
+    "orthogonal-drawing",
+    "min-cost-flow",
+    "planarization"
+  ]
 }
