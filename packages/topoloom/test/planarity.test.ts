@@ -137,4 +137,48 @@ describe('planarity', () => {
     expect(relaxed.treatedDirectedAsUndirected).toBe(true);
     expect(() => testPlanarity(g, { treatDirectedAsUndirected: false })).toThrow(/undirected/i);
   });
+
+  it('supports wasm backend for planar embeddings', () => {
+    const builder = new GraphBuilder();
+    const a = builder.addVertex('a');
+    const b = builder.addVertex('b');
+    const c = builder.addVertex('c');
+    builder.addEdge(a, b, false);
+    builder.addEdge(b, c, false);
+    builder.addEdge(c, a, false);
+    const g = builder.build();
+    const result = testPlanarity(g, { backend: 'wasm' });
+    expect(result.planar).toBe(true);
+    if (result.planar) {
+      const mesh = buildHalfEdgeMesh(g, result.embedding);
+      const validation = validateMesh(mesh);
+      expect(validation.ok).toBe(true);
+    }
+  });
+
+  it('supports wasm backend for nonplanar witnesses', () => {
+    const left = [0, 1, 2];
+    const right = [3, 4, 5];
+    const edges: Array<[number, number]> = [];
+    for (const u of left) {
+      for (const v of right) edges.push([u, v]);
+    }
+    const g = edgeListToGraph(edges).build();
+    const result = testPlanarity(g, { backend: 'wasm' });
+    expect(result.planar).toBe(false);
+    if (!result.planar) {
+      expect(result.witness.edges.length).toBeGreaterThan(0);
+      expect(result.witness.vertices.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('auto backend can be forced to wasm via maxTsVertices', () => {
+    const builder = new GraphBuilder();
+    const a = builder.addVertex('a');
+    const b = builder.addVertex('b');
+    builder.addEdge(a, b, false);
+    const g = builder.build();
+    const result = testPlanarity(g, { backend: 'auto', maxTsVertices: 0 });
+    expect(result.planar).toBe(true);
+  });
 });
