@@ -8,7 +8,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "topoloom": ["../../packages/topoloom/src/index.ts"],
+      "/topoloom": ["../../packages/topoloom/src/index.ts"],
       "topoloom/*": ["../../packages/topoloom/src/*/index.ts"]
     },
     "types": ["vite/client"],
