@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ export function GraphEditor({
   const [target, setTarget] = useState<number>(state.nodes[1]?.id ?? 0);
   const [importText, setImportText] = useState('');
   const [dirty, setDirty] = useState(false);
+  const [compact, setCompact] = useState(false);
   const [pendingNodeId, setPendingNodeId] = useState<number | null>(null);
   const [pendingEdgeId, setPendingEdgeId] = useState<number | null>(null);
 
@@ -52,7 +53,7 @@ export function GraphEditor({
 
   const nodeOptions = useMemo(() => state.nodes.map((node) => node.id), [state.nodes]);
 
-  const addNode = () => {
+  const addNode = useCallback(() => {
     const id = state.nextNodeId;
     const nextNodes = [
       ...state.nodes,
@@ -78,7 +79,7 @@ export function GraphEditor({
       nodes: nextNodes,
       nextNodeId: id + 1,
     });
-  };
+  }, [onChange, onSelectNode, selectedNodeId, source, state, target]);
 
   const removeNode = (id: number) => {
     setDirty(true);
@@ -90,7 +91,7 @@ export function GraphEditor({
     onChange({ ...state, nodes, edges });
   };
 
-  const addEdge = () => {
+  const addEdge = useCallback(() => {
     if (source === target || state.nodes.length < 2) {
       toast.error('Select two different nodes to add an edge.');
       return;
@@ -108,7 +109,30 @@ export function GraphEditor({
       ],
       nextEdgeId: id + 1,
     });
-  };
+  }, [onChange, source, state, target]);
+
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      const targetEl = event.target as HTMLElement | null;
+      if (!targetEl) return;
+      const tag = targetEl.tagName?.toLowerCase();
+      if (targetEl.isContentEditable || tag === 'input' || tag === 'textarea' || tag === 'select') {
+        return;
+      }
+      const mod = event.ctrlKey || event.metaKey;
+      if (!mod) return;
+      if (event.key.toLowerCase() === 'n') {
+        event.preventDefault();
+        addNode();
+      }
+      if (event.key.toLowerCase() === 'e') {
+        event.preventDefault();
+        addEdge();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [addEdge, addNode]);
 
   const removeEdge = (id: number) => {
     setDirty(true);
@@ -183,6 +207,12 @@ export function GraphEditor({
             Undirected only
           </div>
         )}
+        <Button size="sm" variant="ghost" onClick={() => setCompact((prev) => !prev)}>
+          {compact ? 'Expanded' : 'Compact'}
+        </Button>
+      </div>
+      <div className="text-[10px] text-muted-foreground">
+        Shortcuts: {typeof navigator !== 'undefined' && navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+N add node, {typeof navigator !== 'undefined' && navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}+E add edge.
       </div>
       {!allowDirected && directedHint ? (
         <div className="text-[10px] text-muted-foreground">{directedHint}</div>
@@ -252,92 +282,100 @@ export function GraphEditor({
 
       <Separator />
 
-      <details className="rounded-lg border bg-background/80">
-        <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold uppercase text-muted-foreground">
-          Nodes ({state.nodes.length})
-        </summary>
-        <div className="grid gap-2 p-3 pt-1">
-          {state.nodes.map((node) => (
-            <Card
-              key={node.id}
-              className={pendingNodeId === node.id ? 'border-emerald-300 bg-emerald-50/40' : ''}
-            >
-              <CardContent className="flex items-center justify-between p-2 text-xs">
-                <button
-                  type="button"
-                  className={`rounded-md px-2 py-1 text-left text-xs font-medium transition ${
-                    selectedNodeId === node.id
-                      ? 'bg-emerald-100 text-emerald-900'
-                      : 'text-foreground hover:bg-muted/60'
-                  }`}
-                  onClick={() => onSelectNode?.(node.id)}
+      {!compact ? (
+        <>
+          <details className="rounded-lg border bg-background/80">
+            <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold uppercase text-muted-foreground">
+              Nodes ({state.nodes.length})
+            </summary>
+            <div className="grid gap-2 p-3 pt-1">
+              {state.nodes.map((node) => (
+                <Card
+                  key={node.id}
+                  className={pendingNodeId === node.id ? 'border-emerald-300 bg-emerald-50/40' : ''}
                 >
-                  Node {node.label}
-                </button>
-                <Button size="sm" variant="ghost" onClick={() => removeNode(node.id)}>
-                  <Trash2 className="mr-1 h-3 w-3" /> Remove
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </details>
+                  <CardContent className="flex items-center justify-between p-2 text-xs">
+                    <button
+                      type="button"
+                      className={`rounded-md px-2 py-1 text-left text-xs font-medium transition ${
+                        selectedNodeId === node.id
+                          ? 'bg-emerald-100 text-emerald-900'
+                          : 'text-foreground hover:bg-muted/60'
+                      }`}
+                      onClick={() => onSelectNode?.(node.id)}
+                    >
+                      Node {node.label}
+                    </button>
+                    <Button size="sm" variant="ghost" onClick={() => removeNode(node.id)}>
+                      <Trash2 className="mr-1 h-3 w-3" /> Remove
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </details>
 
-      <details className="rounded-lg border bg-background/80">
-        <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold uppercase text-muted-foreground">
-          Edges ({state.edges.length})
-        </summary>
-        <div className="grid gap-2 p-3 pt-1">
-          {state.edges.map((edge) => (
-            <Card
-              key={edge.id}
-              className={pendingEdgeId === edge.id ? 'border-emerald-300 bg-emerald-50/40' : ''}
-            >
-              <CardContent className="flex items-center justify-between p-2 text-xs">
-                <div>
-                  {edge.source} → {edge.target}
-                </div>
-                <Button size="sm" variant="ghost" className="text-destructive" onClick={() => removeEdge(edge.id)}>
-                  <Trash2 className="mr-1 h-3 w-3" /> Remove
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </details>
+          <details className="rounded-lg border bg-background/80">
+            <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold uppercase text-muted-foreground">
+              Edges ({state.edges.length})
+            </summary>
+            <div className="grid gap-2 p-3 pt-1">
+              {state.edges.map((edge) => (
+                <Card
+                  key={edge.id}
+                  className={pendingEdgeId === edge.id ? 'border-emerald-300 bg-emerald-50/40' : ''}
+                >
+                  <CardContent className="flex items-center justify-between p-2 text-xs">
+                    <div>
+                      {edge.source} → {edge.target}
+                    </div>
+                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => removeEdge(edge.id)}>
+                      <Trash2 className="mr-1 h-3 w-3" /> Remove
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </details>
 
-      <div className="flex flex-wrap gap-2">
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button size="sm" variant="outline">Import JSON</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Import graph JSON</DialogTitle>
-              <DialogDescription>
-                Paste a GraphState payload with nodes, edges, and metadata. Example:
-                <span className="block text-[10px] text-muted-foreground">
-                  {"{ \"nodes\": [{\"id\":0,\"label\":\"0\",\"x\":0,\"y\":0}], \"edges\": [] }"}
-                </span>
-              </DialogDescription>
-            </DialogHeader>
-            <textarea
-              className="min-h-[160px] w-full rounded-md border bg-background p-2 text-xs"
-              id="import-json"
-              name="importJson"
-              value={importText}
-              onChange={(event) => setImportText(event.target.value)}
-            />
-            <Button size="sm" onClick={importJson}>Apply</Button>
-          </DialogContent>
-        </Dialog>
-        <Button size="sm" variant="outline" onClick={exportJson}>Export JSON</Button>
-        {pendingEdgeId !== null && (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700">
-            Edge {pendingEdgeId} added
+          <div className="flex flex-wrap gap-2">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline">Import JSON</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Import graph JSON</DialogTitle>
+                  <DialogDescription>
+                    Paste a GraphState payload with nodes, edges, and metadata. Example:
+                    <span className="block text-[10px] text-muted-foreground">
+                      {"{ \"nodes\": [{\"id\":0,\"label\":\"0\",\"x\":0,\"y\":0}], \"edges\": [] }"}
+                    </span>
+                  </DialogDescription>
+                </DialogHeader>
+                <textarea
+                  className="min-h-[160px] w-full rounded-md border bg-background p-2 text-xs"
+                  id="import-json"
+                  name="importJson"
+                  value={importText}
+                  onChange={(event) => setImportText(event.target.value)}
+                />
+                <Button size="sm" onClick={importJson}>Apply</Button>
+              </DialogContent>
+            </Dialog>
+            <Button size="sm" variant="outline" onClick={exportJson}>Export JSON</Button>
+            {pendingEdgeId !== null && (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] text-emerald-700">
+                Edge {pendingEdgeId} added
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      ) : (
+        <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Compact mode hides lists and JSON tools. Nodes: {state.nodes.length} · Edges: {state.edges.length}
+        </div>
+      )}
     </div>
   );
 }

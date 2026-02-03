@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ComputeStatusBadge } from '@/components/demo/ComputeStatusBadge';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
@@ -35,6 +35,7 @@ export function EmbeddingDemo() {
   const [selectedFace, setSelectedFace] = useState<number | null>(() => (initialMesh ? 0 : null));
   const [selectedHalfEdge, setSelectedHalfEdge] = useState<number | null>(() => (initialMesh ? 0 : null));
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [computing, setComputing] = useState(false);
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialMesh ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:embedding', query.autorun, {
@@ -47,15 +48,19 @@ export function EmbeddingDemo() {
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const buildMesh = useCallback(() => {
-    const start = performance.now();
-    const graph = toTopoGraph(state, { forceUndirected: true });
-    const rotation = rotationFromAdjacency(graph);
-    const built = buildHalfEdgeMesh(graph, rotation);
-    setMesh(built);
-    setRuntimeMs(Math.round(performance.now() - start));
-    setSelectedFace(0);
-    setSelectedHalfEdge(0);
-    setComputedSig(currentSig);
+    setComputing(true);
+    window.setTimeout(() => {
+      const start = performance.now();
+      const graph = toTopoGraph(state, { forceUndirected: true });
+      const rotation = rotationFromAdjacency(graph);
+      const built = buildHalfEdgeMesh(graph, rotation);
+      setMesh(built);
+      setRuntimeMs(Math.round(performance.now() - start));
+      setSelectedFace(0);
+      setSelectedHalfEdge(0);
+      setComputedSig(currentSig);
+      setComputing(false);
+    }, 0);
   }, [currentSig, state]);
 
   useEffect(() => {
@@ -80,7 +85,9 @@ export function EmbeddingDemo() {
       expectations={demoExpectations.embedding}
       embed={query.embed}
       ready={Boolean(mesh)}
-      status={<Badge variant="secondary">{mesh ? 'Mesh ready' : 'No mesh'}</Badge>}
+      status={
+        <ComputeStatusBadge computing={computing} label={mesh ? 'Mesh ready' : 'No mesh'} />
+      }
       inputControls={
         <div className="space-y-4">
           <GraphEditor

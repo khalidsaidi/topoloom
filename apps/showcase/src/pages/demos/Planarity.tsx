@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ComputeStatusBadge } from '@/components/demo/ComputeStatusBadge';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
@@ -45,6 +45,7 @@ export function PlanarityDemo() {
     () => initial?.witness ?? new Set(),
   );
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [computing, setComputing] = useState(false);
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() =>
     initial ? initialSig : null,
@@ -59,12 +60,16 @@ export function PlanarityDemo() {
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const runPlanarity = useCallback(() => {
-    const start = performance.now();
-    const next = computePlanarity(state);
-    setResult(next.result);
-    setWitnessEdges(next.witness);
-    setRuntimeMs(Math.round(performance.now() - start));
-    setComputedSig(currentSig);
+    setComputing(true);
+    window.setTimeout(() => {
+      const start = performance.now();
+      const next = computePlanarity(state);
+      setResult(next.result);
+      setWitnessEdges(next.witness);
+      setRuntimeMs(Math.round(performance.now() - start));
+      setComputedSig(currentSig);
+      setComputing(false);
+    }, 0);
   }, [currentSig, state]);
 
   useEffect(() => {
@@ -88,9 +93,10 @@ export function PlanarityDemo() {
       embed={query.embed}
       ready={Boolean(result)}
       status={
-        <Badge variant="secondary">
-          {result ? (result.planar ? 'Planar' : 'Not planar') : 'Pending'}
-        </Badge>
+        <ComputeStatusBadge
+          computing={computing}
+          label={result ? (result.planar ? 'Planar' : 'Not planar') : 'Pending'}
+        />
       }
       inputControls={
         <div className="space-y-4">

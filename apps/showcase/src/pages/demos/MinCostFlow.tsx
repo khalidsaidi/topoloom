@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ComputeStatusBadge } from '@/components/demo/ComputeStatusBadge';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { JsonInspector } from '@/components/demo/JsonInspector';
 import { AutoComputeToggle } from '@/components/demo/AutoComputeToggle';
@@ -56,6 +56,7 @@ export function MinCostFlowDemo() {
   const [network, setNetwork] = useState<FlowPreset>(() => initialNetwork);
   const [result, setResult] = useState<FlowResult | null>(() => initialResult);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [computing, setComputing] = useState(false);
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:min-cost-flow', query.autorun, {
@@ -68,11 +69,15 @@ export function MinCostFlowDemo() {
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
-    const start = performance.now();
-    const res = minCostFlow(network);
-    setResult(res);
-    setRuntimeMs(Math.round(performance.now() - start));
-    setComputedSig(currentSig);
+    setComputing(true);
+    window.setTimeout(() => {
+      const start = performance.now();
+      const res = minCostFlow(network);
+      setResult(res);
+      setRuntimeMs(Math.round(performance.now() - start));
+      setComputedSig(currentSig);
+      setComputing(false);
+    }, 0);
   }, [currentSig, network]);
 
   useEffect(() => {
@@ -95,7 +100,9 @@ export function MinCostFlowDemo() {
       expectations={demoExpectations.minCostFlow}
       embed={query.embed}
       ready={Boolean(result)}
-      status={<Badge variant="secondary">{result ? 'Solved' : 'Pending'}</Badge>}
+      status={
+        <ComputeStatusBadge computing={computing} label={result ? 'Solved' : 'Pending'} />
+      }
       inputControls={
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">

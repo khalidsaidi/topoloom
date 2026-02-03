@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ComputeStatusBadge } from '@/components/demo/ComputeStatusBadge';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
@@ -42,6 +42,7 @@ export function DualRoutingDemo() {
     NonNullable<ReturnType<typeof routeEdgeOnGraph>> | { error: string } | null
   >(() => initialResult);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [computing, setComputing] = useState(false);
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [highlighted, setHighlighted] = useState<Set<number>>(
     () => new Set((initialResult && 'crossedPrimalEdges' in initialResult ? initialResult.crossedPrimalEdges : []) ?? []),
@@ -57,14 +58,18 @@ export function DualRoutingDemo() {
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
-    const start = performance.now();
-    const route = computeRoute(state, u, v);
-    setResult(route);
-    setHighlighted(
-      new Set('crossedPrimalEdges' in route ? route.crossedPrimalEdges ?? [] : []),
-    );
-    setRuntimeMs(Math.round(performance.now() - start));
-    setComputedSig(currentSig);
+    setComputing(true);
+    window.setTimeout(() => {
+      const start = performance.now();
+      const route = computeRoute(state, u, v);
+      setResult(route);
+      setHighlighted(
+        new Set('crossedPrimalEdges' in route ? route.crossedPrimalEdges ?? [] : []),
+      );
+      setRuntimeMs(Math.round(performance.now() - start));
+      setComputedSig(currentSig);
+      setComputing(false);
+    }, 0);
   }, [computeRoute, currentSig, state, u, v]);
 
   useEffect(() => {
@@ -93,7 +98,9 @@ export function DualRoutingDemo() {
       expectations={demoExpectations.dualRouting}
       embed={query.embed}
       ready={Boolean(result)}
-      status={<Badge variant="secondary">{result ? 'Routed' : 'Pending'}</Badge>}
+      status={
+        <ComputeStatusBadge computing={computing} label={result ? 'Routed' : 'Pending'} />
+      }
       inputControls={
         <div className="space-y-4">
           <GraphEditor

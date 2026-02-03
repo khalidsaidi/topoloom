@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ComputeStatusBadge } from '@/components/demo/ComputeStatusBadge';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
@@ -36,6 +36,7 @@ export function BCTreeDemo() {
   const [tree, setTree] = useState<BCTree | null>(() => initial?.tree ?? null);
   const [selectedBlock, setSelectedBlock] = useState<number | null>(() => (initial ? 0 : null));
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [computing, setComputing] = useState(false);
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initial ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:bc-tree', query.autorun, {
@@ -48,15 +49,19 @@ export function BCTreeDemo() {
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
-    const start = performance.now();
-    const graph = toTopoGraph(state, { forceUndirected: true });
-    const bccRes = biconnectedComponents(graph);
-    const treeRes = buildBCTree(graph, bccRes);
-    setBcc(bccRes);
-    setTree(treeRes);
-    setSelectedBlock(0);
-    setRuntimeMs(Math.round(performance.now() - start));
-    setComputedSig(currentSig);
+    setComputing(true);
+    window.setTimeout(() => {
+      const start = performance.now();
+      const graph = toTopoGraph(state, { forceUndirected: true });
+      const bccRes = biconnectedComponents(graph);
+      const treeRes = buildBCTree(graph, bccRes);
+      setBcc(bccRes);
+      setTree(treeRes);
+      setSelectedBlock(0);
+      setRuntimeMs(Math.round(performance.now() - start));
+      setComputedSig(currentSig);
+      setComputing(false);
+    }, 0);
   }, [currentSig, state]);
 
   useEffect(() => {
@@ -80,7 +85,9 @@ export function BCTreeDemo() {
       expectations={demoExpectations.bcTree}
       embed={query.embed}
       ready={Boolean(bcc)}
-      status={<Badge variant="secondary">{bcc ? 'Computed' : 'Pending'}</Badge>}
+      status={
+        <ComputeStatusBadge computing={computing} label={bcc ? 'Computed' : 'Pending'} />
+      }
       inputControls={
         <div className="space-y-4">
           <GraphEditor
