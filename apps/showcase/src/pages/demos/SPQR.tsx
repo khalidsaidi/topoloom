@@ -278,7 +278,7 @@ export function SPQRDemo() {
       setError(message);
       toast.error(message);
     }
-  }, [computeSpqr, layoutMode, state, userResized]);
+  }, [computeSpqr, currentSig, layoutMode, state, userResized]);
 
   const applyPreset = useCallback((key: PresetKey) => {
     const preset = presets[key];
