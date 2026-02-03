@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,24 +8,50 @@ import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, toTopoGraph } from '@/components/demo/graph-model';
+import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
+import { readDemoQuery } from '@/lib/demoQuery';
 import { stNumbering, bipolarOrientation, type BipolarOrientation, type StNumbering } from '@khalidsaidi/topoloom/order';
 import { buildHalfEdgeMesh, rotationFromAdjacency } from '@khalidsaidi/topoloom/embedding';
 
 export function StBipolarDemo() {
-  const [state, setState] = useState<GraphState>(presets.squareDiagonal);
-  const [s, setS] = useState<number>(0);
-  const [t, setT] = useState<number>(1);
-  const [result, setResult] = useState<{ numbering: StNumbering; bipolar: BipolarOrientation } | null>(null);
+  const { search } = useLocation();
+  const query = readDemoQuery(search);
+  const presetKey = resolvePreset(query.preset, 'k4' satisfies PresetKey);
+  const initialState = presets[presetKey];
+  const initialS = initialState.nodes[0]?.id ?? 0;
+  const initialT = initialState.nodes[initialState.nodes.length - 1]?.id ?? initialS;
+  const initialResult = (() => {
+    if (!query.autorun) return null;
+    const graph = toTopoGraph(initialState);
+    const numbering = stNumbering(graph, initialS, initialT);
+    const mesh = buildHalfEdgeMesh(graph, rotationFromAdjacency(graph));
+    const bipolar = bipolarOrientation(mesh, initialS, initialT);
+    return { numbering, bipolar };
+  })();
+  const [state, setState] = useState<GraphState>(() => initialState);
+  const [s, setS] = useState<number>(initialS);
+  const [t, setT] = useState<number>(initialT);
+  const [result, setResult] = useState<{ numbering: StNumbering; bipolar: BipolarOrientation } | null>(
+    () => initialResult,
+  );
 
-  const run = () => {
+  const run = useCallback(() => {
     const graph = toTopoGraph(state);
     const numbering = stNumbering(graph, s, t);
     const mesh = buildHalfEdgeMesh(graph, rotationFromAdjacency(graph));
     const bipolar = bipolarOrientation(mesh, s, t);
     setResult({ numbering, bipolar });
+  }, [s, state, t]);
+  const handleStateChange = (next: GraphState) => {
+    const ids = next.nodes.map((node) => node.id);
+    const nextS = ids.includes(s) ? s : ids[0] ?? 0;
+    const nextT = ids.includes(t) ? t : ids[ids.length - 1] ?? nextS;
+    setState(next);
+    setS(nextS);
+    setT(nextT);
+    setResult(null);
   };
 
   const edges = useMemo(() => edgePathsFromState(state), [state]);
@@ -34,10 +61,12 @@ export function StBipolarDemo() {
       title="st-numbering + bipolar orientation"
       subtitle="Pick terminals s,t and generate the ordering and acyclic orientation."
       expectations={demoExpectations.stBipolar}
+      embed={query.embed}
+      ready={Boolean(result)}
       status={<Badge variant="secondary">{result ? 'Computed' : 'Pending'}</Badge>}
       inputControls={
         <div className="space-y-4">
-          <GraphEditor state={state} onChange={setState} />
+          <GraphEditor state={state} onChange={handleStateChange} />
           <div className="flex gap-2">
             <select
               className="w-full rounded-md border bg-background px-2 py-1 text-xs"

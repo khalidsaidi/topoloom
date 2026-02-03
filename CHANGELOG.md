@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.6 — 2026-02-03
+- Make demo outputs screenshot-ready via embed/autorun query params and capture framing markers.
+- Prioritize graph visibility: output-first layout, no expectation overlap, and clearer SPQR inspector flow.
+- Add deterministic npm screenshot capture script and refresh package README imagery.
+
 ## v0.2.2 — 2026-02-02
 - Fix Firebase Hosting header precedence so assets are truly immutable-cached and build-info is short-cached.
 - Align library version with repo tag.

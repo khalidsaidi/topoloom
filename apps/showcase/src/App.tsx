@@ -61,14 +61,23 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/getting-started" element={<GettingStarted />} />
             <Route path="/demo/planarity" element={<PlanarityDemo />} />
+            <Route path="/demos/planarity" element={<PlanarityDemo />} />
             <Route path="/demo/embedding" element={<EmbeddingDemo />} />
+            <Route path="/demos/embedding" element={<EmbeddingDemo />} />
             <Route path="/demo/bc-tree" element={<BCTreeDemo />} />
+            <Route path="/demos/bc-tree" element={<BCTreeDemo />} />
             <Route path="/demo/spqr" element={<SPQRDemo />} />
+            <Route path="/demos/spqr" element={<SPQRDemo />} />
             <Route path="/demo/st-bipolar" element={<StBipolarDemo />} />
+            <Route path="/demos/st-bipolar" element={<StBipolarDemo />} />
             <Route path="/demo/dual-routing" element={<DualRoutingDemo />} />
+            <Route path="/demos/dual-routing" element={<DualRoutingDemo />} />
             <Route path="/demo/min-cost-flow" element={<MinCostFlowDemo />} />
+            <Route path="/demos/min-cost-flow" element={<MinCostFlowDemo />} />
             <Route path="/demo/orthogonal" element={<OrthogonalDemo />} />
+            <Route path="/demos/orthogonal" element={<OrthogonalDemo />} />
             <Route path="/demo/planarization" element={<PlanarizationDemo />} />
+            <Route path="/demos/planarization" element={<PlanarizationDemo />} />
             <Route path="/concepts/rotation" element={<RotationConcept />} />
             <Route path="/concepts/bc-spqr" element={<BCSPQRConcept />} />
             <Route path="/concepts/dual-routing" element={<DualRoutingConcept />} />

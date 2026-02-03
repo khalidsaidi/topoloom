@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,24 +8,41 @@ import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, toTopoGraph } from '@/components/demo/graph-model';
+import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
+import { readDemoQuery } from '@/lib/demoQuery';
 import { buildHalfEdgeMesh, rotationFromAdjacency, type HalfEdgeMesh } from '@khalidsaidi/topoloom/embedding';
 
 export function EmbeddingDemo() {
-  const [state, setState] = useState<GraphState>(presets.squareDiagonal);
-  const [mesh, setMesh] = useState<HalfEdgeMesh | null>(null);
-  const [selectedFace, setSelectedFace] = useState<number | null>(null);
-  const [selectedHalfEdge, setSelectedHalfEdge] = useState<number | null>(null);
+  const { search } = useLocation();
+  const query = readDemoQuery(search);
+  const presetKey = resolvePreset(query.preset, 'k4' satisfies PresetKey);
+  const initialState = presets[presetKey];
+  const initialMesh = (() => {
+    if (!query.autorun) return null;
+    const graph = toTopoGraph(initialState);
+    const rotation = rotationFromAdjacency(graph);
+    return buildHalfEdgeMesh(graph, rotation);
+  })();
+  const [state, setState] = useState<GraphState>(() => initialState);
+  const [mesh, setMesh] = useState<HalfEdgeMesh | null>(() => initialMesh);
+  const [selectedFace, setSelectedFace] = useState<number | null>(() => (initialMesh ? 0 : null));
+  const [selectedHalfEdge, setSelectedHalfEdge] = useState<number | null>(() => (initialMesh ? 0 : null));
 
-  const buildMesh = () => {
+  const buildMesh = useCallback(() => {
     const graph = toTopoGraph(state);
     const rotation = rotationFromAdjacency(graph);
     const built = buildHalfEdgeMesh(graph, rotation);
     setMesh(built);
     setSelectedFace(0);
     setSelectedHalfEdge(0);
+  }, [state]);
+  const handleStateChange = (next: GraphState) => {
+    setState(next);
+    setMesh(null);
+    setSelectedFace(null);
+    setSelectedHalfEdge(null);
   };
 
   const highlightedEdges = useMemo(() => {
@@ -38,10 +56,12 @@ export function EmbeddingDemo() {
       title="Embedding"
       subtitle="Compile rotation systems into half-edge structures and enumerate faces."
       expectations={demoExpectations.embedding}
+      embed={query.embed}
+      ready={Boolean(mesh)}
       status={<Badge variant="secondary">{mesh ? 'Mesh ready' : 'No mesh'}</Badge>}
       inputControls={
         <div className="space-y-4">
-          <GraphEditor state={state} onChange={setState} />
+          <GraphEditor state={state} onChange={handleStateChange} />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={buildMesh}>Build half-edge</Button>
           </div>

@@ -109,6 +109,7 @@ export function SvgViewport({
 
   return (
     <div
+      data-testid="viewport"
       className={cn(
         'h-[360px] w-full overflow-hidden rounded-xl border bg-background/70 sm:h-[460px] md:h-[560px] lg:h-[70vh] xl:h-[74vh]',
         className,

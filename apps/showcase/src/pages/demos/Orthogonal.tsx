@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -9,43 +10,61 @@ import { JsonInspector } from '@/components/demo/JsonInspector';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, toTopoGraph } from '@/components/demo/graph-model';
+import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { orthogonalLayout, type LayoutResult, type EdgePath } from '@khalidsaidi/topoloom/layout';
 import { buildHalfEdgeMesh, rotationFromAdjacency } from '@khalidsaidi/topoloom/embedding';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
+import { readDemoQuery } from '@/lib/demoQuery';
 
 export function OrthogonalDemo() {
-  const [state, setState] = useState<GraphState>(presets.squareDiagonal);
-  const [layout, setLayout] = useState<LayoutResult | null>(null);
-  const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
-
-  const run = () => {
-    const start = performance.now();
-    setError(null);
-    if (state.directed) {
-      const message = 'Orthogonal layout currently supports undirected planar graphs only.';
-      setLayout(null);
-      setRuntimeMs(undefined);
-      setError(message);
-      toast.error(message);
-      return;
+  const { search } = useLocation();
+  const query = readDemoQuery(search);
+  const presetKey = resolvePreset(query.preset, 'cube' satisfies PresetKey);
+  const initialState = presets[presetKey];
+  const computeLayout = (graphState: GraphState) => {
+    if (graphState.directed) {
+      return {
+        layout: null,
+        error: 'Orthogonal layout currently supports undirected planar graphs only.',
+      };
     }
     try {
-      const graph = toTopoGraph(state);
+      const graph = toTopoGraph(graphState);
       const mesh = buildHalfEdgeMesh(graph, rotationFromAdjacency(graph));
       const result = orthogonalLayout(mesh);
-      setLayout(result);
-      setRuntimeMs(Math.round(performance.now() - start));
+      return {
+        layout: result,
+        error: null,
+      };
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Orthogonal layout failed.';
-      setLayout(null);
-      setRuntimeMs(Math.round(performance.now() - start));
-      setError(message);
-      toast.error(message);
+      return {
+        layout: null,
+        error: err instanceof Error ? err.message : 'Orthogonal layout failed.',
+      };
     }
+  };
+  const initialComputed = query.autorun ? computeLayout(initialState) : { layout: null, error: null };
+  const [state, setState] = useState<GraphState>(() => initialState);
+  const [layout, setLayout] = useState<LayoutResult | null>(() => initialComputed.layout);
+  const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
+  const [error, setError] = useState<string | null>(() => initialComputed.error);
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+
+  const run = useCallback(() => {
+    const start = performance.now();
+    const next = computeLayout(state);
+    setLayout(next.layout);
+    setRuntimeMs(Math.round(performance.now() - start));
+    setError(next.error);
+    if (next.error) toast.error(next.error);
+  }, [state]);
+
+  const handleStateChange = (next: GraphState) => {
+    setState(next);
+    setLayout(null);
+    setRuntimeMs(undefined);
+    setError(null);
   };
 
   const nodes = useMemo(() => {
@@ -68,6 +87,8 @@ export function OrthogonalDemo() {
       title="Orthogonal layout"
       subtitle="Run Tamassia-style orthogonalization and compaction to build grid drawings."
       expectations={demoExpectations.orthogonal}
+      embed={query.embed}
+      ready={Boolean(layout) || Boolean(error)}
       status={(
         <Badge variant={error ? 'destructive' : 'secondary'}>
           {error ? 'Error' : layout ? 'Drawn' : 'Pending'}
@@ -77,7 +98,7 @@ export function OrthogonalDemo() {
         <div className="space-y-4">
           <GraphEditor
             state={state}
-            onChange={setState}
+            onChange={handleStateChange}
             selectedNodeId={selectedNodeId}
             onSelectNode={setSelectedNodeId}
           />
