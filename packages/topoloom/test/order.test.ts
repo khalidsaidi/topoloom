@@ -23,6 +23,23 @@ describe('order', () => {
     expect(bNum).toBeLessThan(numbering.numberOf[c] ?? Number.MAX_SAFE_INTEGER);
   });
 
+  it('sanitizes directed edges and self-loops by default', () => {
+    const builder = new GraphBuilder();
+    const a = builder.addVertex('a');
+    const b = builder.addVertex('b');
+    const c = builder.addVertex('c');
+    builder.addEdge(a, b, true);
+    builder.addEdge(b, c, true);
+    builder.addEdge(c, a, true);
+    builder.addEdge(a, a, false);
+    const g = builder.build();
+
+    const numbering = stNumbering(g, a, c);
+    expect(numbering.order.length).toBe(3);
+    expect(() => stNumbering(g, a, c, { treatDirectedAsUndirected: false })).toThrow(/undirected/i);
+    expect(() => stNumbering(g, a, c, { allowSelfLoops: 'reject' })).toThrow(/self-loops/i);
+  });
+
   it('computes bipolar orientation', () => {
     const builder = new GraphBuilder();
     const a = builder.addVertex('a');

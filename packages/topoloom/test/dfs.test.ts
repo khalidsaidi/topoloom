@@ -86,6 +86,21 @@ describe('dfs toolkit', () => {
     expect(loopBlock).toBeDefined();
   });
 
+  it('can reject directed edges or self-loops via options', () => {
+    const builder = new GraphBuilder();
+    const v0 = builder.addVertex('0');
+    const v1 = builder.addVertex('1');
+    builder.addEdge(v0, v1, true);
+    const g = builder.build();
+    expect(() => biconnectedComponents(g, { treatDirectedAsUndirected: false })).toThrow(/undirected/i);
+
+    const loopBuilder = new GraphBuilder();
+    const a = loopBuilder.addVertex('a');
+    loopBuilder.addEdge(a, a, false);
+    const loopGraph = loopBuilder.build();
+    expect(() => biconnectedComponents(loopGraph, { allowSelfLoops: 'reject' })).toThrow(/self-loops/i);
+  });
+
   it('partitions edges into blocks for random graphs', () => {
     fc.assert(
       fc.property(

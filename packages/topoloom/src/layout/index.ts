@@ -210,6 +210,52 @@ const snapPositionsToGrid = (positions: Map<VertexId, Point>, spacing = 20) => {
   return snapped;
 };
 
+const compactOrthogonalGrid = (
+  positions: Map<VertexId, Point>,
+  edges: EdgePath[],
+  spacing = 20,
+) => {
+  const xs = new Set<number>();
+  const ys = new Set<number>();
+  positions.forEach((p) => {
+    xs.add(p.x);
+    ys.add(p.y);
+  });
+  edges.forEach((edge) => {
+    edge.points.forEach((p) => {
+      xs.add(p.x);
+      ys.add(p.y);
+    });
+  });
+
+  const mapAxis = (values: Set<number>) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const mapping = new Map<number, number>();
+    sorted.forEach((v, idx) => mapping.set(v, idx * spacing));
+    return mapping;
+  };
+
+  const xMap = mapAxis(xs);
+  const yMap = mapAxis(ys);
+  const nextPositions = new Map<VertexId, Point>();
+  positions.forEach((p, v) => {
+    nextPositions.set(v, {
+      x: xMap.get(p.x) ?? p.x,
+      y: yMap.get(p.y) ?? p.y,
+    });
+  });
+
+  const nextEdges = edges.map((edge) => ({
+    edge: edge.edge,
+    points: edge.points.map((p) => ({
+      x: xMap.get(p.x) ?? p.x,
+      y: yMap.get(p.y) ?? p.y,
+    })),
+  }));
+
+  return { positions: nextPositions, edges: nextEdges };
+};
+
 export function planarStraightLine(mesh: HalfEdgeMesh): LayoutResult {
   const vertexCount = Math.max(...mesh.origin) + 1;
   const positions = new Map<VertexId, Point>();
@@ -600,8 +646,9 @@ export function orthogonalLayout(mesh: HalfEdgeMesh): LayoutResult {
     edges.push({ edge: e, points: path });
   }
 
-  const xs = [...positions.values()].map((p) => p.x);
-  const ys = [...positions.values()].map((p) => p.y);
+  const compacted = compactOrthogonalGrid(positions, edges, 20);
+  const xs = [...compacted.positions.values()].map((p) => p.x);
+  const ys = [...compacted.positions.values()].map((p) => p.y);
   const minX = xs.length ? Math.min(...xs) : 0;
   const maxX = xs.length ? Math.max(...xs) : 0;
   const minY = ys.length ? Math.min(...ys) : 0;
@@ -609,10 +656,10 @@ export function orthogonalLayout(mesh: HalfEdgeMesh): LayoutResult {
   const area = Math.max(0, maxX - minX) * Math.max(0, maxY - minY);
 
   return {
-    positions,
-    edges,
+    positions: compacted.positions,
+    edges: compacted.edges,
     stats: {
-      bends: countBends(edges),
+      bends: countBends(compacted.edges),
       area,
       crossings: 0,
     },
