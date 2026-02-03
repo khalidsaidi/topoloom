@@ -37,7 +37,7 @@ export function DemoScaffold({
         {outputOverlay ? (
           <div>{outputOverlay}</div>
         ) : (
-          <div className="relative h-[340px] w-full overflow-hidden rounded-xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/60 sm:h-[420px] md:h-[520px] lg:h-[62vh] xl:h-[68vh]">
+          <div className="relative h-[420px] w-full overflow-hidden rounded-xl border border-dashed bg-gradient-to-br from-muted/40 via-background to-muted/60 sm:h-[520px] md:h-[620px] lg:h-[72vh] xl:h-[76vh]">
             <svg viewBox="0 0 400 260" className="h-full w-full">
               <g stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.5">
                 <line x1="80" y1="60" x2="200" y2="40" />
@@ -99,12 +99,12 @@ export function DemoScaffold({
         <p className="max-w-3xl text-sm text-muted-foreground">{subtitle}</p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,_1fr)_minmax(260px,_360px)] lg:items-start">
-        <div data-testid="demo-capture" className="space-y-4 lg:min-h-[60vh]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,_2.2fr)_minmax(260px,_360px)] lg:items-start">
+        <div data-testid="demo-capture" className="space-y-4 lg:min-h-[70vh]">
           {outputCard}
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
+        <aside className="space-y-4 lg:self-start">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Input</CardTitle>

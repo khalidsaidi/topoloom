@@ -32,6 +32,7 @@ export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): Pla
   const treatDirected = options.treatDirectedAsUndirected ?? false;
   const allowSelfLoops = options.allowSelfLoops ?? 'reject';
   const ignoredSelfLoops: EdgeId[] = [];
+  const loopsByVertex: EdgeId[][] = Array.from({ length: n }, () => []);
   const included: typeof edges = [];
   const edgeMap: EdgeId[] = [];
 
@@ -43,6 +44,7 @@ export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): Pla
     if (edge.u === edge.v) {
       if (allowSelfLoops === 'ignore') {
         ignoredSelfLoops.push(edge.id);
+        loopsByVertex[edge.u]?.push(edge.id);
         continue;
       }
       throw new Error('Planarity test does not support self-loops.');
@@ -55,10 +57,19 @@ export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): Pla
   }
 
   if (included.length === 0) {
+    const order: RotationSystem['order'] = Array.from({ length: n }, () => []);
+    loopsByVertex.forEach((loops, v) => {
+      if (!loops.length) return;
+      loops.sort((a, b) => a - b);
+      for (const edgeId of loops) {
+        order[v]?.push({ edge: edgeId, to: v });
+        order[v]?.push({ edge: edgeId, to: v });
+      }
+    });
     const meta: PlanarityMeta = {};
     if (ignoredSelfLoops.length) meta.ignoredSelfLoops = ignoredSelfLoops;
     if (treatDirected) meta.treatedDirectedAsUndirected = true;
-    return { planar: true, embedding: { order: Array.from({ length: n }, () => []) }, ...meta };
+    return { planar: true, embedding: { order }, ...meta };
   }
 
   const wasm = getPlanarityWasm();
@@ -120,6 +131,16 @@ export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): Pla
             list?.push({ edge: edgeId, to });
           }
         }
+        loopsByVertex.forEach((loops, v) => {
+          if (!loops.length) return;
+          loops.sort((a, b) => a - b);
+          const list = order[v] ?? [];
+          for (const edgeId of loops) {
+            list.push({ edge: edgeId, to: v });
+            list.push({ edge: edgeId, to: v });
+          }
+          order[v] = list;
+        });
         const meta: PlanarityMeta = {};
         if (ignoredSelfLoops.length) meta.ignoredSelfLoops = ignoredSelfLoops;
         if (treatDirected) meta.treatedDirectedAsUndirected = true;

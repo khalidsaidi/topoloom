@@ -363,7 +363,12 @@ export function SPQRDemo() {
     if (mode === 'BUILDING') {
       return (
         <div className="space-y-4">
-          <GraphEditor state={state} onChange={setState} />
+          <GraphEditor
+            state={state}
+            onChange={setState}
+            allowDirected={false}
+            directedHint="This demo uses undirected planar inputs."
+          />
           <AutoComputeToggle
             value={autoState.value}
             onChange={autoState.setValue}

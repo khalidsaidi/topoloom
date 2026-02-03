@@ -22,6 +22,20 @@ describe('embedding', () => {
     expect(g.vertexCount() - g.edgeCount() + mesh.faces.length).toBe(2);
   });
 
+  it('supports self-loops in rotation systems', () => {
+    const builder = new GraphBuilder();
+    const v0 = builder.addVertex('0');
+    const v1 = builder.addVertex('1');
+    builder.addEdge(v0, v1, false);
+    builder.addEdge(v0, v0, false);
+    const g = builder.build();
+
+    const mesh = buildHalfEdgeMesh(g, rotationFromAdjacency(g));
+    const validation = validateMesh(mesh);
+    expect(validation.ok).toBe(true);
+    expect(mesh.halfEdgeCount).toBe(g.edgeCount() * 2);
+  });
+
   it('builds faces for square with diagonal', () => {
     const builder = new GraphBuilder();
     const v0 = builder.addVertex('0');

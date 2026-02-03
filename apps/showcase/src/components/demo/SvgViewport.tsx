@@ -142,14 +142,16 @@ export function SvgViewport({
         {edges.map((edge) => {
           const highlight = highlightedEdges?.has(edge.edge) ?? false;
           const flash = flashEdges.has(edge.edge);
-          const stroke = flash ? '#22c55e' : highlight ? '#ef4444' : 'rgba(15,23,42,0.6)';
+          const stroke = flash ? '#22c55e' : highlight ? '#ef4444' : 'rgba(15,23,42,0.8)';
           return (
             <polyline
               key={edge.edge}
               points={edge.points.map((p) => `${p.x},${p.y}`).join(' ')}
               fill="none"
               stroke={stroke}
-              strokeWidth={flash ? 2.6 : 1.6}
+              strokeWidth={flash ? 3 : 2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
           );
         })}

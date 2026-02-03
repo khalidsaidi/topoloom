@@ -10,8 +10,16 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isMap = (value: unknown): value is Map<unknown, unknown> => value instanceof Map;
 const isSet = (value: unknown): value is Set<unknown> => value instanceof Set;
 
-const Node = ({ label, value }: { label: string; value: unknown }) => {
-  const [open, setOpen] = useState(false);
+const Node = ({
+  label,
+  value,
+  defaultOpen = false,
+}: {
+  label: string;
+  value: unknown;
+  defaultOpen?: boolean;
+}) => {
+  const [open, setOpen] = useState(defaultOpen);
   if (isMap(value)) {
     const entries = Array.from(value.entries());
     return (
@@ -108,7 +116,7 @@ const Node = ({ label, value }: { label: string; value: unknown }) => {
 export function JsonInspector({ data }: JsonInspectorProps) {
   return (
     <div className="h-[360px] overflow-auto rounded-lg border bg-muted/30 p-3">
-      <Node label="root" value={data} />
+      <Node label="root" value={data} defaultOpen />
     </div>
   );
 }

@@ -78,7 +78,12 @@ export function EmbeddingDemo() {
       status={<Badge variant="secondary">{mesh ? 'Mesh ready' : 'No mesh'}</Badge>}
       inputControls={
         <div className="space-y-4">
-          <GraphEditor state={state} onChange={handleStateChange} />
+          <GraphEditor
+            state={state}
+            onChange={handleStateChange}
+            allowDirected={false}
+            directedHint="This demo uses undirected planar inputs."
+          />
           <AutoComputeToggle
             value={autoState.value}
             onChange={autoState.setValue}

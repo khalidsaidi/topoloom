@@ -85,7 +85,12 @@ export function StBipolarDemo() {
       status={<Badge variant="secondary">{result ? 'Computed' : 'Pending'}</Badge>}
       inputControls={
         <div className="space-y-4">
-          <GraphEditor state={state} onChange={handleStateChange} />
+          <GraphEditor
+            state={state}
+            onChange={handleStateChange}
+            allowDirected={false}
+            directedHint="This demo uses undirected planar inputs."
+          />
           <AutoComputeToggle
             value={autoState.value}
             onChange={autoState.setValue}

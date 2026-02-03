@@ -46,12 +46,14 @@ Live demo: https://topoloom.web.app
 
 ## Complexity & limitations
 - Planarity testing uses a native core (WASM). By default it expects undirected, loopless graphs,
-  but `testPlanarity` can **treat directed edges as undirected** and **ignore self-loops** via options.
-- SPQR decomposition expects biconnected, loopless, undirected graphs. Use `spqrDecomposeSafe`
+  but `testPlanarity` can **treat directed edges as undirected** and **re‑inject self‑loops** into the
+  embedding when `allowSelfLoops: 'ignore'` is set.
+- Biconnected components treat self‑loops as singleton blocks so they remain visible in BC‑trees.
+- SPQR decomposition expects biconnected, undirected graphs. Use `spqrDecomposeSafe`
   (largest block) or `spqrDecomposeAll` (forest) for non‑biconnected inputs. The implementation is
   deterministic but not yet optimized to linear time.
 - Dual routing on graphs can fall back to a **maximal planar backbone** when requested.
-- Orthogonal layout assumes planar inputs; degree > 4 is handled via local expansion.
+- Orthogonal layout assumes planar, undirected inputs; degree > 4 is handled via local expansion.
 
 ## Contributing
 - Use pnpm >= 9 and Node >= 20.

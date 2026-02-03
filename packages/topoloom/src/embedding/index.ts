@@ -44,14 +44,11 @@ export function buildHalfEdgeMesh(graph: Graph, rotation: RotationSystem): HalfE
   const edge: EdgeId[] = Array(halfEdgeCount).fill(-1);
   const face: FaceId[] = Array(halfEdgeCount).fill(-1);
 
-  const halfEdgeOf = new Map<string, HalfEdgeId>();
+  const halfEdgeOf = new Map<string, HalfEdgeId[]>();
 
   graph.edges().forEach((edgeRecord) => {
     if (edgeRecord.directed) {
       throw new Error('Embedding does not support directed edges in half-edge compilation.');
-    }
-    if (edgeRecord.u === edgeRecord.v) {
-      throw new Error('Embedding does not support self-loops in half-edge compilation.');
     }
     const h0 = edgeRecord.id * 2;
     const h1 = edgeRecord.id * 2 + 1;
@@ -61,8 +58,13 @@ export function buildHalfEdgeMesh(graph: Graph, rotation: RotationSystem): HalfE
     twin[h1] = h0;
     edge[h0] = edgeRecord.id;
     edge[h1] = edgeRecord.id;
-    halfEdgeOf.set(`${edgeRecord.id}:${edgeRecord.u}`, h0);
-    halfEdgeOf.set(`${edgeRecord.id}:${edgeRecord.v}`, h1);
+    const pushHalfEdge = (key: string, half: HalfEdgeId) => {
+      const bucket = halfEdgeOf.get(key) ?? [];
+      bucket.push(half);
+      halfEdgeOf.set(key, bucket);
+    };
+    pushHalfEdge(`${edgeRecord.id}:${edgeRecord.u}`, h0);
+    pushHalfEdge(`${edgeRecord.id}:${edgeRecord.v}`, h1);
   });
 
   // Validate rotation system against the graph.
@@ -73,27 +75,37 @@ export function buildHalfEdgeMesh(graph: Graph, rotation: RotationSystem): HalfE
         throw new Error('Rotation system requires an undirected graph.');
       }
     }
-    const expected = new Map<EdgeId, VertexId>();
+    const expected = new Map<EdgeId, { to: VertexId; count: number }>();
     for (const entry of adj) {
-      expected.set(entry.edge, entry.to);
+      const current = expected.get(entry.edge);
+      if (!current) {
+        expected.set(entry.edge, { to: entry.to, count: 1 });
+      } else {
+        if (current.to !== entry.to) {
+          throw new Error(`Rotation system has inconsistent endpoints for edge ${entry.edge} at vertex ${v}.`);
+        }
+        current.count += 1;
+      }
     }
     const cyclic = rotation.order[v] ?? [];
-    if (cyclic.length !== expected.size) {
+    if (cyclic.length !== adj.length) {
       throw new Error(`Rotation system for vertex ${v} has wrong degree.`);
     }
-    const seen = new Set<EdgeId>();
+    const seen = new Map<EdgeId, number>();
     for (const ref of cyclic) {
-      if (seen.has(ref.edge)) {
-        throw new Error(`Rotation system duplicates edge ${ref.edge} at vertex ${v}.`);
-      }
       const to = expected.get(ref.edge);
-      if (to === undefined) {
+      if (!to) {
         throw new Error(`Rotation system lists non-incident edge ${ref.edge} at vertex ${v}.`);
       }
-      if (to !== ref.to) {
+      if (to.to !== ref.to) {
         throw new Error(`Rotation system has mismatched endpoint for edge ${ref.edge} at vertex ${v}.`);
       }
-      seen.add(ref.edge);
+      seen.set(ref.edge, (seen.get(ref.edge) ?? 0) + 1);
+    }
+    for (const [edgeId, info] of expected.entries()) {
+      if ((seen.get(edgeId) ?? 0) !== info.count) {
+        throw new Error(`Rotation system has wrong multiplicity for edge ${edgeId} at vertex ${v}.`);
+      }
     }
   }
 
@@ -101,21 +113,25 @@ export function buildHalfEdgeMesh(graph: Graph, rotation: RotationSystem): HalfE
   for (let v = 0; v < rotation.order.length; v += 1) {
     const cyclic = rotation.order[v] ?? [];
     if (cyclic.length === 0) continue;
-    for (let i = 0; i < cyclic.length; i += 1) {
-      const ref = cyclic[i]!;
-      const h = halfEdgeOf.get(`${ref.edge}:${v}`);
-      if (h === undefined) {
+    const halfEdges = cyclic.map((ref) => {
+      const key = `${ref.edge}:${v}`;
+      const bucket = halfEdgeOf.get(key);
+      if (!bucket || bucket.length === 0) {
         throw new Error(`Rotation system missing half-edge for vertex ${v} edge ${ref.edge}`);
       }
-      const twinH = twin[h];
+      const half = bucket.shift();
+      if (half === undefined) {
+        throw new Error(`Rotation system missing half-edge for vertex ${v} edge ${ref.edge}`);
+      }
+      return half;
+    });
+    for (let i = 0; i < cyclic.length; i += 1) {
+      const h = halfEdges[i]!;
+      const twinH = twin[h] ?? -1;
       if (twinH === undefined || twinH < 0) {
         throw new Error(`Rotation system missing twin for half-edge ${h}`);
       }
-      const nextRef = cyclic[(i + 1) % cyclic.length]!;
-      const nextHalfEdge = halfEdgeOf.get(`${nextRef.edge}:${v}`);
-      if (nextHalfEdge === undefined) {
-        throw new Error(`Rotation system missing next half-edge for vertex ${v} edge ${nextRef.edge}`);
-      }
+      const nextHalfEdge = halfEdges[(i + 1) % cyclic.length]!;
       next[twinH] = nextHalfEdge;
       const prevValue = prev[nextHalfEdge];
       if (prevValue !== undefined && prevValue !== -1 && prevValue !== twinH) {
