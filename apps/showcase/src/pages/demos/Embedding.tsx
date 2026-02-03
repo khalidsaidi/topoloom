@@ -9,6 +9,7 @@ import { JsonInspector } from '@/components/demo/JsonInspector';
 import { AutoComputeToggle } from '@/components/demo/AutoComputeToggle';
 import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
+import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
 import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
@@ -34,6 +35,7 @@ export function EmbeddingDemo() {
   const [selectedFace, setSelectedFace] = useState<number | null>(() => (initialMesh ? 0 : null));
   const [selectedHalfEdge, setSelectedHalfEdge] = useState<number | null>(() => (initialMesh ? 0 : null));
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialMesh ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:embedding', query.autorun, {
     size: state.nodes.length + state.edges.length,
@@ -45,10 +47,12 @@ export function EmbeddingDemo() {
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const buildMesh = useCallback(() => {
+    const start = performance.now();
     const graph = toTopoGraph(state, { forceUndirected: true });
     const rotation = rotationFromAdjacency(graph);
     const built = buildHalfEdgeMesh(graph, rotation);
     setMesh(built);
+    setRuntimeMs(Math.round(performance.now() - start));
     setSelectedFace(0);
     setSelectedHalfEdge(0);
     setComputedSig(currentSig);
@@ -130,6 +134,7 @@ export function EmbeddingDemo() {
       outputOverlay={
         <div className="space-y-3">
           <RecomputeBanner visible={isStale} onRecompute={buildMesh} />
+          <StatsPanel items={[{ label: 'Runtime (ms)', value: runtimeMs }]} />
           <SvgViewport
             nodes={state.nodes}
             edges={edgePathsFromState(state)}
