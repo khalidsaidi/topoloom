@@ -366,8 +366,8 @@ export function SPQRDemo() {
           <GraphEditor
             state={state}
             onChange={setState}
-            allowDirected={false}
-            directedHint="This demo uses undirected planar inputs."
+            allowDirected
+            directedHint="Directions are ignored; non-biconnected inputs fall back to the largest block."
           />
           <AutoComputeToggle
             value={autoState.value}

@@ -86,8 +86,8 @@ export function PlanarizationDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
-            allowDirected={false}
-            directedHint="This demo uses undirected planar inputs."
+            allowDirected
+            directedHint="Directions are ignored; planarization works on the undirected backbone."
           />
           <AutoComputeToggle
             value={autoState.value}

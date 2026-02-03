@@ -92,8 +92,8 @@ export function DualRoutingDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
-            allowDirected={false}
-            directedHint="This demo uses undirected planar inputs."
+            allowDirected
+            directedHint="Directions are ignored; nonplanar inputs route on a planar backbone."
           />
           <AutoComputeToggle
             value={autoState.value}

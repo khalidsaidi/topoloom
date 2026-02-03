@@ -13,7 +13,7 @@ export const demoExpectations = {
     'Guarantees each half-edge has a twin and consistent next/prev cycles.',
     'Exposes dual adjacency derived from face boundaries.',
     'No layout is produced; this is pure topology.',
-    'Self-loops are rejected during half-edge compilation.',
+    'Self-loops are supported and compiled into paired half-edges.',
   ],
   bcTree: [
     'Separates blocks (biconnected components) from cut vertices.',
@@ -62,7 +62,7 @@ export const demoExpectations = {
     'Compaction yields integer grid coordinates.',
     'Reports bend counts and area metrics.',
     'No renderer-specific styling is applied.',
-    'Degree reduction for high-degree vertices is applied implicitly.',
+    'Nonplanar inputs are planarized before orthogonal routing.',
   ],
   planarization: [
     'Finds a maximal planar subgraph as the backbone.',

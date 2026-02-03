@@ -99,41 +99,39 @@ export function DemoScaffold({
         <p className="max-w-3xl text-sm text-muted-foreground">{subtitle}</p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,_2.2fr)_minmax(260px,_360px)] lg:items-start">
-        <div data-testid="demo-capture" className="space-y-4 lg:min-h-[70vh]">
-          {outputCard}
-        </div>
+      <div data-testid="demo-capture" className="space-y-4 lg:min-h-[70vh]">
+        {outputCard}
+      </div>
 
-        <aside className="space-y-4 lg:self-start">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Input</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {inputControls ?? <GraphControls />}
-            </CardContent>
-          </Card>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,_1.2fr)_minmax(0,_0.9fr)] lg:items-start">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Input</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {inputControls ?? <GraphControls />}
+          </CardContent>
+        </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Data inspector</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {inspector ?? (
-                <ScrollArea className="h-[280px] rounded-lg border bg-muted/30 p-3">
-                  <pre className="text-xs text-muted-foreground">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Data inspector</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {inspector ?? (
+              <ScrollArea className="h-[280px] rounded-lg border bg-muted/30 p-3">
+                <pre className="text-xs text-muted-foreground">
 {`{
   "status": "pending",
   "rotationSystem": [],
   "faces": [],
   "notes": "Run a demo to populate JSON outputs."
 }`}
-                  </pre>
-                </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-        </aside>
+                </pre>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <Card>

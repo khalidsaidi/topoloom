@@ -96,8 +96,8 @@ export function PlanarityDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
-            allowDirected={false}
-            directedHint="This demo uses undirected planar inputs."
+            allowDirected
+            directedHint="Directions are ignored for planarity checks."
           />
           <AutoComputeToggle
             value={autoState.value}

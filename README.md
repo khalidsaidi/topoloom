@@ -49,11 +49,11 @@ Live demo: https://topoloom.web.app
   but `testPlanarity` can **treat directed edges as undirected** and **re‑inject self‑loops** into the
   embedding when `allowSelfLoops: 'ignore'` is set.
 - Biconnected components treat self‑loops as singleton blocks so they remain visible in BC‑trees.
-- SPQR decomposition expects biconnected, undirected graphs. Use `spqrDecomposeSafe`
-  (largest block) or `spqrDecomposeAll` (forest) for non‑biconnected inputs. The implementation is
-  deterministic but not yet optimized to linear time.
-- Dual routing on graphs can fall back to a **maximal planar backbone** when requested.
-- Orthogonal layout assumes planar, undirected inputs; degree > 4 is handled via local expansion.
+- SPQR decomposition is defined on biconnected graphs; `spqrDecomposeSafe` (largest block) and
+  `spqrDecomposeAll` (forest) handle non‑biconnected inputs deterministically.
+- Dual routing can fall back to a **maximal planar backbone** when requested.
+- Orthogonal layout treats directed inputs as undirected and planarizes non‑planar graphs before
+  routing. Flow infeasibility for high‑degree vertices is mitigated by relaxed port assignment.
 
 ## Contributing
 - Use pnpm >= 9 and Node >= 20.

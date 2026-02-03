@@ -81,8 +81,8 @@ export function EmbeddingDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
-            allowDirected={false}
-            directedHint="This demo uses undirected planar inputs."
+            allowDirected
+            directedHint="Directions are ignored for embedding construction."
           />
           <AutoComputeToggle
             value={autoState.value}

@@ -88,8 +88,8 @@ export function StBipolarDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
-            allowDirected={false}
-            directedHint="This demo uses undirected planar inputs."
+            allowDirected
+            directedHint="Directions are ignored for st-numbering and bipolar orientation."
           />
           <AutoComputeToggle
             value={autoState.value}

@@ -81,8 +81,8 @@ export function BCTreeDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
-            allowDirected={false}
-            directedHint="This demo uses undirected planar inputs."
+            allowDirected
+            directedHint="Directions are ignored for biconnected decomposition."
           />
           <AutoComputeToggle
             value={autoState.value}

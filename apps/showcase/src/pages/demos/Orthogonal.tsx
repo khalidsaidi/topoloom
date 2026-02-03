@@ -14,8 +14,9 @@ import { StatsPanel } from '@/components/demo/StatsPanel';
 import { demoExpectations } from '@/data/demo-expectations';
 import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
-import { orthogonalLayout, type LayoutResult, type EdgePath } from '@khalidsaidi/topoloom/layout';
-import { buildHalfEdgeMesh, rotationFromAdjacency } from '@khalidsaidi/topoloom/embedding';
+import { orthogonalLayout, planarizationLayout, type LayoutResult, type EdgePath } from '@khalidsaidi/topoloom/layout';
+import { buildHalfEdgeMesh } from '@khalidsaidi/topoloom/embedding';
+import { testPlanarity } from '@khalidsaidi/topoloom/planarity';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
 import { useAutoCompute } from '@/lib/useAutoCompute';
@@ -29,16 +30,29 @@ export function OrthogonalDemo() {
   const computeLayout = (graphState: GraphState) => {
     try {
       const graph = toTopoGraph(graphState, { forceUndirected: true });
-      const mesh = buildHalfEdgeMesh(graph, rotationFromAdjacency(graph));
-      const result = orthogonalLayout(mesh);
+      const planarity = testPlanarity(graph, { allowSelfLoops: 'ignore' });
+      if (planarity.planar) {
+        const mesh = buildHalfEdgeMesh(graph, planarity.embedding);
+        const result = orthogonalLayout(mesh);
+        return {
+          layout: result,
+          error: null,
+          note: planarity.ignoredSelfLoops?.length
+            ? `Ignored ${planarity.ignoredSelfLoops.length} self-loop(s) for orthogonal layout.`
+            : null,
+        };
+      }
+      const planarized = planarizationLayout(graph, { mode: 'orthogonal' });
       return {
-        layout: result,
+        layout: planarized.layout,
         error: null,
+        note: `Nonplanar input: planarized ${planarized.remainingEdges.length} edge(s) before orthogonal routing.`,
       };
     } catch (err) {
       return {
         layout: null,
         error: err instanceof Error ? err.message : 'Orthogonal layout failed.',
+        note: null,
       };
     }
   };
@@ -47,6 +61,7 @@ export function OrthogonalDemo() {
   const [layout, setLayout] = useState<LayoutResult | null>(() => initialComputed.layout);
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(() => initialComputed.error);
+  const [note, setNote] = useState<string | null>(() => (initialComputed as { note?: string | null }).note ?? null);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialComputed.layout || initialComputed.error ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:orthogonal', query.autorun, {
@@ -65,6 +80,7 @@ export function OrthogonalDemo() {
     setLayout(next.layout);
     setRuntimeMs(Math.round(performance.now() - start));
     setError(next.error);
+    setNote((next as { note?: string | null }).note ?? null);
     if (next.error) toast.error(next.error);
     setComputedSig(currentSig);
   }, [currentSig, state]);
@@ -113,8 +129,8 @@ export function OrthogonalDemo() {
             onChange={handleStateChange}
             selectedNodeId={selectedNodeId}
             onSelectNode={setSelectedNodeId}
-            allowDirected={false}
-            directedHint="Orthogonal layout currently uses undirected planar inputs."
+            allowDirected
+            directedHint="Edge directions are ignored for orthogonal geometry; nonplanar inputs are planarized."
           />
           <AutoComputeToggle
             value={autoState.value}
@@ -148,6 +164,11 @@ export function OrthogonalDemo() {
             crossings={layout?.stats.crossings}
             runtimeMs={runtimeMs}
           />
+          {note ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              {note}
+            </div>
+          ) : null}
           {error && (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {error}
