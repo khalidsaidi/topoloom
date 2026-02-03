@@ -14,6 +14,7 @@ import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } f
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
+import { useAutoCompute } from '@/lib/useAutoCompute';
 import { buildHalfEdgeMesh, rotationFromAdjacency, type HalfEdgeMesh } from '@khalidsaidi/topoloom/embedding';
 
 export function EmbeddingDemo() {
@@ -33,11 +34,14 @@ export function EmbeddingDemo() {
   const [selectedFace, setSelectedFace] = useState<number | null>(() => (initialMesh ? 0 : null));
   const [selectedHalfEdge, setSelectedHalfEdge] = useState<number | null>(() => (initialMesh ? 0 : null));
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialMesh ? initialSig : null));
-  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
+  const autoState = useAutoCompute('topoloom:auto:embedding', query.autorun, {
+    size: state.nodes.length + state.edges.length,
+    maxSize: 150,
+  });
 
   const currentSig = useMemo(() => graphSignature(state), [state]);
   const isStale = computedSig !== null && computedSig !== currentSig;
-  const shouldAutoRun = autoRun && (computedSig === null || isStale);
+  const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const buildMesh = useCallback(() => {
     const graph = toTopoGraph(state, { forceUndirected: true });
@@ -75,7 +79,12 @@ export function EmbeddingDemo() {
       inputControls={
         <div className="space-y-4">
           <GraphEditor state={state} onChange={handleStateChange} />
-          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
+          <AutoComputeToggle
+            value={autoState.value}
+            onChange={autoState.setValue}
+            disabled={autoState.disabled}
+            hint={autoState.disabled ? 'Auto recompute paused for large graphs.' : undefined}
+          />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={buildMesh}>Build half-edge</Button>
           </div>

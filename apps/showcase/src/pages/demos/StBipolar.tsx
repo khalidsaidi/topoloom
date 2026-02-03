@@ -14,6 +14,7 @@ import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } f
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
+import { useAutoCompute } from '@/lib/useAutoCompute';
 import { stNumbering, bipolarOrientation, type BipolarOrientation, type StNumbering } from '@khalidsaidi/topoloom/order';
 import { buildHalfEdgeMesh, rotationFromAdjacency } from '@khalidsaidi/topoloom/embedding';
 
@@ -40,11 +41,14 @@ export function StBipolarDemo() {
     () => initialResult,
   );
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
-  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
+  const autoState = useAutoCompute('topoloom:auto:st-bipolar', query.autorun, {
+    size: state.nodes.length + state.edges.length,
+    maxSize: 150,
+  });
 
   const currentSig = useMemo(() => `${graphSignature(state)}|${s}:${t}`, [state, s, t]);
   const isStale = computedSig !== null && computedSig !== currentSig;
-  const shouldAutoRun = autoRun && (computedSig === null || isStale);
+  const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
     const graph = toTopoGraph(state, { forceUndirected: true });
@@ -82,7 +86,12 @@ export function StBipolarDemo() {
       inputControls={
         <div className="space-y-4">
           <GraphEditor state={state} onChange={handleStateChange} />
-          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
+          <AutoComputeToggle
+            value={autoState.value}
+            onChange={autoState.setValue}
+            disabled={autoState.disabled}
+            hint={autoState.disabled ? 'Auto recompute paused for large graphs.' : undefined}
+          />
           <div className="flex gap-2">
             <select
               className="w-full rounded-md border bg-background px-2 py-1 text-xs"

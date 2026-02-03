@@ -113,9 +113,12 @@ describe('planarity', () => {
 
     const loopBuilder = new GraphBuilder();
     const x = loopBuilder.addVertex('x');
-    loopBuilder.addEdge(x, x, false);
+    const loopId = loopBuilder.addEdge(x, x, false);
     const loopGraph = loopBuilder.build();
     expect(() => testPlanarity(loopGraph)).toThrow(/self-loops/i);
+    const ignored = testPlanarity(loopGraph, { allowSelfLoops: 'ignore' });
+    expect(ignored.planar).toBe(true);
+    expect(ignored.ignoredSelfLoops).toEqual([loopId]);
   });
 
   it('rejects directed graphs', () => {
@@ -125,5 +128,8 @@ describe('planarity', () => {
     builder.addEdge(a, b, true);
     const g = builder.build();
     expect(() => testPlanarity(g)).toThrow(/undirected/i);
+    const relaxed = testPlanarity(g, { treatDirectedAsUndirected: true });
+    expect(relaxed.planar).toBe(true);
+    expect(relaxed.treatedDirectedAsUndirected).toBe(true);
   });
 });

@@ -33,6 +33,27 @@ export type SPQRTree = {
   edges: SPQRTreeEdge[];
 };
 
+export type SPQRSafeOptions = {
+  treatDirectedAsUndirected?: boolean;
+  allowSelfLoops?: 'reject' | 'ignore';
+  block?: 'largest' | 'first';
+};
+
+export type SPQRSafeResult = {
+  tree: SPQRTree;
+  blockEdges?: EdgeId[];
+  note?: string;
+  ignoredSelfLoops?: EdgeId[];
+  treatedDirectedAsUndirected?: boolean;
+};
+
+export type SPQRForest = {
+  blocks: Array<{ edges: EdgeId[]; tree: SPQRTree }>;
+  articulationPoints: VertexId[];
+  ignoredSelfLoops?: EdgeId[];
+  treatedDirectedAsUndirected?: boolean;
+};
+
 type ComponentEdge = {
   u: VertexId;
   v: VertexId;
@@ -188,6 +209,110 @@ const assignComponentIds = (components: Component[]) => {
   components.forEach((component, idx) => {
     component.id = idx;
   });
+};
+
+const sanitizeForSpqr = (graph: Graph, options: SPQRSafeOptions = {}) => {
+  const treatDirected = options.treatDirectedAsUndirected ?? false;
+  const allowSelfLoops = options.allowSelfLoops ?? 'reject';
+  const ignoredSelfLoops: EdgeId[] = [];
+  const needsClone = treatDirected || allowSelfLoops === 'ignore';
+
+  if (!needsClone) {
+    for (const edge of graph.edges()) {
+      if (edge.directed) throw new Error('SPQR decomposition requires an undirected graph.');
+      if (edge.u === edge.v) throw new Error('SPQR decomposition does not support self-loops.');
+    }
+    return {
+      graph,
+      edgeMap: graph.edges().map((edge) => edge.id),
+      ignoredSelfLoops,
+      treatedDirectedAsUndirected: false,
+    };
+  }
+
+  const builder = new GraphBuilder();
+  for (const v of graph.vertices()) builder.addVertex(graph.label(v));
+  const edgeMap: EdgeId[] = [];
+  for (const edge of graph.edges()) {
+    if (edge.u === edge.v) {
+      if (allowSelfLoops === 'ignore') {
+        ignoredSelfLoops.push(edge.id);
+        continue;
+      }
+      throw new Error('SPQR decomposition does not support self-loops.');
+    }
+    if (edge.directed && !treatDirected) {
+      throw new Error('SPQR decomposition requires an undirected graph.');
+    }
+    const newId = builder.addEdge(edge.u, edge.v, false);
+    edgeMap[newId] = edge.id;
+  }
+  return {
+    graph: builder.build(),
+    edgeMap,
+    ignoredSelfLoops,
+    treatedDirectedAsUndirected: treatDirected,
+  };
+};
+
+const buildSubgraphFromEdges = (graph: Graph, edges: EdgeId[]) => {
+  const vertices = new Set<VertexId>();
+  for (const edgeId of edges) {
+    const edge = graph.edge(edgeId);
+    vertices.add(edge.u);
+    vertices.add(edge.v);
+  }
+  const vertexMap = Array.from(vertices.values()).sort((a, b) => a - b);
+  const index = new Map<VertexId, VertexId>();
+  const builder = new GraphBuilder();
+  vertexMap.forEach((v, idx) => {
+    index.set(v, idx as VertexId);
+    builder.addVertex(graph.label(v));
+  });
+  const edgeMap: EdgeId[] = [];
+  const sortedEdges = edges.slice().sort((a, b) => a - b);
+  for (const edgeId of sortedEdges) {
+    const edge = graph.edge(edgeId);
+    const u = index.get(edge.u);
+    const v = index.get(edge.v);
+    if (u === undefined || v === undefined) continue;
+    const newId = builder.addEdge(u, v, false);
+    edgeMap[newId] = edgeId;
+  }
+  return { graph: builder.build(), vertexMap, edgeMap };
+};
+
+const mapSpqrTree = (
+  tree: SPQRTree,
+  edgeMap: EdgeId[],
+  vertexMap?: VertexId[],
+): SPQRTree => {
+  const mapVertex = (v: VertexId) => (vertexMap ? (vertexMap[v] ?? v) : v);
+  const nodes = tree.nodes.map((node) => {
+    const mappedEdgeKind = node.edgeKind.map((kind) => {
+      if (!kind) return kind;
+      if (kind.kind === 'real') {
+        return {
+          ...kind,
+          original: edgeMap[kind.original ?? -1] ?? kind.original,
+        };
+      }
+      return { ...kind };
+    });
+    return {
+      ...node,
+      edgeKind: mappedEdgeKind,
+      vertexMap: node.vertexMap.map(mapVertex),
+    };
+  });
+  const edges = tree.edges.map((edge) => ({
+    ...edge,
+    pair: [mapVertex(edge.pair[0]), mapVertex(edge.pair[1])] as [VertexId, VertexId],
+    ...(edge.originalEdge !== undefined
+      ? { originalEdge: edgeMap[edge.originalEdge] ?? edge.originalEdge }
+      : {}),
+  }));
+  return { nodes, edges };
 };
 
 export function spqrDecompose(graph: Graph): SPQRTree {
@@ -372,6 +497,64 @@ export function spqrDecompose(graph: Graph): SPQRTree {
   });
 
   return { nodes, edges };
+}
+
+export function spqrDecomposeAll(graph: Graph, options: SPQRSafeOptions = {}): SPQRForest {
+  const sanitized = sanitizeForSpqr(graph, options);
+  const bcc = biconnectedComponents(sanitized.graph);
+  const blocks = bcc.blocks.map((block) => {
+    if (!block.length) {
+      return { edges: [] as EdgeId[], tree: { nodes: [], edges: [] } };
+    }
+    const sub = buildSubgraphFromEdges(sanitized.graph, block);
+    const tree = spqrDecompose(sub.graph);
+    const edgeMapToOriginal = sub.edgeMap.map((edgeId) => sanitized.edgeMap[edgeId] ?? edgeId);
+    const mappedTree = mapSpqrTree(tree, edgeMapToOriginal, sub.vertexMap);
+    const mappedEdges = block.map((edgeId) => sanitized.edgeMap[edgeId] ?? edgeId);
+    return { edges: mappedEdges, tree: mappedTree };
+  });
+
+  const forest: SPQRForest = {
+    blocks,
+    articulationPoints: bcc.articulationPoints.slice(),
+  };
+  if (sanitized.ignoredSelfLoops.length) forest.ignoredSelfLoops = sanitized.ignoredSelfLoops;
+  if (sanitized.treatedDirectedAsUndirected) {
+    forest.treatedDirectedAsUndirected = true;
+  }
+  return forest;
+}
+
+export function spqrDecomposeSafe(graph: Graph, options: SPQRSafeOptions = {}): SPQRSafeResult {
+  const sanitized = sanitizeForSpqr(graph, options);
+  const bcc = biconnectedComponents(sanitized.graph);
+  if (bcc.blocks.length === 0) {
+    throw new Error('SPQR decomposition requires at least one edge.');
+  }
+  let block = bcc.blocks[0] ?? [];
+  if (options.block === 'largest') {
+    for (const candidate of bcc.blocks) {
+      if (candidate.length > block.length) block = candidate;
+    }
+  }
+  const sub = buildSubgraphFromEdges(sanitized.graph, block);
+  const tree = spqrDecompose(sub.graph);
+  const edgeMapToOriginal = sub.edgeMap.map((edgeId) => sanitized.edgeMap[edgeId] ?? edgeId);
+  const mappedTree = mapSpqrTree(tree, edgeMapToOriginal, sub.vertexMap);
+  const note =
+    bcc.blocks.length > 1 || bcc.articulationPoints.length > 0
+      ? `Input not biconnected: using ${options.block === 'first' ? 'first' : 'largest'} block (${block.length} edge(s)).`
+      : undefined;
+  const result: SPQRSafeResult = {
+    tree: mappedTree,
+    blockEdges: block.map((edgeId) => sanitized.edgeMap[edgeId] ?? edgeId),
+  };
+  if (note) result.note = note;
+  if (sanitized.ignoredSelfLoops.length) result.ignoredSelfLoops = sanitized.ignoredSelfLoops;
+  if (sanitized.treatedDirectedAsUndirected) {
+    result.treatedDirectedAsUndirected = true;
+  }
+  return result;
 }
 
 export type SPQRValidation = { ok: boolean; errors: string[] };

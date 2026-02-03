@@ -13,6 +13,7 @@ import { createGraphState } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
+import { useAutoCompute } from '@/lib/useAutoCompute';
 import { minCostFlow, type FlowResult } from '@khalidsaidi/topoloom/flow';
 
 type FlowPreset = {
@@ -54,11 +55,14 @@ export function MinCostFlowDemo() {
   const [network, setNetwork] = useState<FlowPreset>(() => initialNetwork);
   const [result, setResult] = useState<FlowResult | null>(() => initialResult);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
-  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
+  const autoState = useAutoCompute('topoloom:auto:min-cost-flow', query.autorun, {
+    size: network.nodeCount + network.arcs.length,
+    maxSize: 120,
+  });
 
   const currentSig = useMemo(() => JSON.stringify(network), [network]);
   const isStale = computedSig !== null && computedSig !== currentSig;
-  const shouldAutoRun = autoRun && (computedSig === null || isStale);
+  const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
     const res = minCostFlow(network);
@@ -92,7 +96,12 @@ export function MinCostFlowDemo() {
             <Button size="sm" onClick={() => handlePreset(presets.simple)}>Load preset</Button>
             <Button size="sm" variant="outline" onClick={() => handlePreset(presets.lowerBounds)}>Lower bound preset</Button>
           </div>
-          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
+          <AutoComputeToggle
+            value={autoState.value}
+            onChange={autoState.setValue}
+            disabled={autoState.disabled}
+            hint={autoState.disabled ? 'Auto recompute paused for large networks.' : undefined}
+          />
           <Button size="sm" onClick={run}>Solve flow</Button>
         </div>
       }

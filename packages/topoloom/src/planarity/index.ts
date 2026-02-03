@@ -8,47 +8,92 @@ export type PlanarityWitness = {
   edges: EdgeId[];
 };
 
+export type PlanarityOptions = {
+  treatDirectedAsUndirected?: boolean;
+  allowSelfLoops?: 'reject' | 'ignore';
+};
+
+export type PlanarityMeta = {
+  ignoredSelfLoops?: EdgeId[];
+  treatedDirectedAsUndirected?: boolean;
+};
+
 export type PlanarityResult =
-  | { planar: true; embedding: RotationSystem }
-  | { planar: false; witness: PlanarityWitness };
+  | ({ planar: true; embedding: RotationSystem } & PlanarityMeta)
+  | ({ planar: false; witness: PlanarityWitness } & PlanarityMeta);
 
 const EMBEDFLAGS_PLANAR = 1;
 const OK = 1;
 const NONEMBEDDABLE = -1;
 
-export function testPlanarity(graph: Graph): PlanarityResult {
+export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): PlanarityResult {
   const n = graph.vertexCount();
   const edges = graph.edges();
+  const treatDirected = options.treatDirectedAsUndirected ?? false;
+  const allowSelfLoops = options.allowSelfLoops ?? 'reject';
+  const ignoredSelfLoops: EdgeId[] = [];
+  const included: typeof edges = [];
+  const edgeMap: EdgeId[] = [];
 
   if (n === 0) {
     return { planar: true, embedding: { order: [] } };
   }
 
   for (const edge of edges) {
-    if (edge.directed) {
-      throw new Error('Planarity test requires an undirected graph.');
-    }
     if (edge.u === edge.v) {
+      if (allowSelfLoops === 'ignore') {
+        ignoredSelfLoops.push(edge.id);
+        continue;
+      }
       throw new Error('Planarity test does not support self-loops.');
     }
+    if (edge.directed && !treatDirected) {
+      throw new Error('Planarity test requires an undirected graph.');
+    }
+    included.push(edge);
+    edgeMap.push(edge.id);
+  }
+
+  if (included.length === 0) {
+    const meta: PlanarityMeta = {};
+    if (ignoredSelfLoops.length) meta.ignoredSelfLoops = ignoredSelfLoops;
+    if (treatDirected) meta.treatedDirectedAsUndirected = true;
+    return { planar: true, embedding: { order: Array.from({ length: n }, () => []) }, ...meta };
   }
 
   const wasm = getPlanarityWasm();
-  const uPtr = allocInt32Ptr(wasm, edges.length);
-  const vPtr = allocInt32Ptr(wasm, edges.length);
-  const uView = viewInt32(wasm, uPtr, edges.length);
-  const vView = viewInt32(wasm, vPtr, edges.length);
+  const uPtr = allocInt32Ptr(wasm, included.length);
+  const vPtr = allocInt32Ptr(wasm, included.length);
+  const uView = viewInt32(wasm, uPtr, included.length);
+  const vView = viewInt32(wasm, vPtr, included.length);
 
-  for (let i = 0; i < edges.length; i += 1) {
-    const edge = edges[i];
+  for (let i = 0; i < included.length; i += 1) {
+    const edge = included[i];
     if (!edge) continue;
     uView[i] = edge.u;
     vView[i] = edge.v;
   }
 
+  const edgeBuckets: Array<Map<VertexId, EdgeId[]>> = Array.from({ length: n }, () => new Map());
+  for (const edge of included) {
+    const addEdge = (u: VertexId, v: VertexId, id: EdgeId) => {
+      const bucket = edgeBuckets[u]?.get(v) ?? [];
+      bucket.push(id);
+      edgeBuckets[u]?.set(v, bucket);
+    };
+    addEdge(edge.u, edge.v, edge.id);
+    addEdge(edge.v, edge.u, edge.id);
+  }
+  edgeBuckets.forEach((map) => {
+    map.forEach((bucket, key) => {
+      bucket.sort((a, b) => a - b);
+      map.set(key, bucket);
+    });
+  });
+
   let result: PlanarityResult;
   try {
-    const embedResult = wasm.tl_planarity_run(n, edges.length, uPtr, vPtr, EMBEDFLAGS_PLANAR);
+    const embedResult = wasm.tl_planarity_run(n, included.length, uPtr, vPtr, EMBEDFLAGS_PLANAR);
     if (embedResult === OK) {
       const rotationSize = wasm.tl_planarity_rotation_size();
       const offsetsPtr = allocInt32Ptr(wasm, n + 1);
@@ -65,17 +110,9 @@ export function testPlanarity(graph: Graph): PlanarityResult {
           const start = offsets[v] ?? 0;
           const end = offsets[v + 1] ?? start;
           const list = order[v];
-          const edgeBuckets = new Map<VertexId, EdgeId[]>();
-          for (const adj of graph.adjacency(v)) {
-            if (adj.dir !== 'undirected') continue;
-            const bucket = edgeBuckets.get(adj.to) ?? [];
-            bucket.push(adj.edge);
-            edgeBuckets.set(adj.to, bucket);
-          }
-          edgeBuckets.forEach((bucket) => bucket.sort((a, b) => a - b));
           for (let idx = start; idx < end; idx += 1) {
             const to = neighborView[idx] as VertexId;
-            const bucket = edgeBuckets.get(to);
+            const bucket = edgeBuckets[v]?.get(to);
             if (!bucket || bucket.length === 0) {
               throw new Error(`Planarity core returned invalid neighbor ${to} for vertex ${v}.`);
             }
@@ -83,7 +120,10 @@ export function testPlanarity(graph: Graph): PlanarityResult {
             list?.push({ edge: edgeId, to });
           }
         }
-        result = { planar: true, embedding: { order } };
+        const meta: PlanarityMeta = {};
+        if (ignoredSelfLoops.length) meta.ignoredSelfLoops = ignoredSelfLoops;
+        if (treatDirected) meta.treatedDirectedAsUndirected = true;
+        result = { planar: true, embedding: { order }, ...meta };
       } finally {
         wasm.free(offsetsPtr);
         wasm.free(edgePtr);
@@ -103,9 +143,15 @@ export function testPlanarity(graph: Graph): PlanarityResult {
         wasm.tl_planarity_write_witness_edges(edgePtr);
         wasm.tl_planarity_write_witness_vertices(vertexPtr);
 
-        const edgesOut = Array.from(edgeView).filter((id) => id >= 0) as EdgeId[];
+        const edgesOut = Array.from(edgeView)
+          .filter((id) => id >= 0)
+          .map((idx) => edgeMap[idx] ?? -1)
+          .filter((id) => id >= 0) as EdgeId[];
         const verticesOut = Array.from(vertexView).filter((id) => id >= 0) as VertexId[];
 
+        const meta: PlanarityMeta = {};
+        if (ignoredSelfLoops.length) meta.ignoredSelfLoops = ignoredSelfLoops;
+        if (treatDirected) meta.treatedDirectedAsUndirected = true;
         result = {
           planar: false,
           witness: {
@@ -113,6 +159,7 @@ export function testPlanarity(graph: Graph): PlanarityResult {
             vertices: verticesOut,
             edges: edgesOut,
           },
+          ...meta,
         };
       } finally {
         wasm.free(edgePtr);

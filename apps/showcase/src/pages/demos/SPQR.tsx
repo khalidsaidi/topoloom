@@ -15,9 +15,8 @@ import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } f
 import type { GraphNode, GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
-import { spqrDecompose, flipSkeleton, permuteParallel, materializeEmbedding, type SPQRTree } from '@khalidsaidi/topoloom/decomp';
-import { biconnectedComponents } from '@khalidsaidi/topoloom/dfs';
-import { GraphBuilder, type Graph, type EdgeId } from '@khalidsaidi/topoloom/graph';
+import { useAutoCompute } from '@/lib/useAutoCompute';
+import { spqrDecomposeSafe, flipSkeleton, permuteParallel, materializeEmbedding, type SPQRTree } from '@khalidsaidi/topoloom/decomp';
 
 type Mode = 'BUILDING' | 'INSPECTING';
 type LayoutMode = 'horizontal' | 'vertical' | 'stacked';
@@ -123,44 +122,18 @@ export function SPQRDemo() {
   const presetKey = resolvePreset(query.preset, 'squareDiagonal' satisfies PresetKey);
   const initialState = presets[presetKey];
   const initialSig = graphSignature(initialState);
-  const buildBiconnectedSubgraph = useCallback((graph: Graph, edges: EdgeId[]) => {
-    const vertices = new Set<number>();
-    edges.forEach((edgeId) => {
-      const edge = graph.edge(edgeId);
-      vertices.add(edge.u);
-      vertices.add(edge.v);
-    });
-    const builder = new GraphBuilder();
-    const idMap = new Map<number, number>();
-    Array.from(vertices.values()).sort((a, b) => a - b).forEach((v) => {
-      idMap.set(v, builder.addVertex(graph.label(v)));
-    });
-    edges.forEach((edgeId) => {
-      const edge = graph.edge(edgeId);
-      const u = idMap.get(edge.u);
-      const v = idMap.get(edge.v);
-      if (u !== undefined && v !== undefined) {
-        builder.addEdge(u, v, false);
-      }
-    });
-    return builder.build();
-  }, []);
-
   const computeSpqr = useCallback((graphState: GraphState) => {
     const graph = toTopoGraph(graphState, { forceUndirected: true });
-    const bcc = biconnectedComponents(graph);
-    let spqrGraph = graph;
-    let note: string | null = null;
-    if (bcc.blocks.length > 1 || bcc.articulationPoints.length > 0) {
-      let bestBlock = bcc.blocks[0] ?? [];
-      for (const block of bcc.blocks) {
-        if (block.length > bestBlock.length) bestBlock = block;
-      }
-      spqrGraph = buildBiconnectedSubgraph(graph, bestBlock);
-      note = `Input not biconnected: using largest block (${bestBlock.length} edge(s)).`;
-    }
-    return { tree: spqrDecompose(spqrGraph), note };
-  }, [buildBiconnectedSubgraph]);
+    const result = spqrDecomposeSafe(graph, {
+      block: 'largest',
+      allowSelfLoops: 'ignore',
+      treatDirectedAsUndirected: true,
+    });
+    const note = result.note ?? (result.ignoredSelfLoops?.length
+      ? `Ignored ${result.ignoredSelfLoops.length} self-loop(s) before decomposition.`
+      : null);
+    return { tree: result.tree, note };
+  }, []);
 
   const initialComputed = (() => {
     if (!query.autorun) return { tree: null, note: null };
@@ -189,7 +162,10 @@ export function SPQRDemo() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() =>
     typeof window === 'undefined' ? 'horizontal' : getLayoutMode(window.innerWidth),
   );
-  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
+  const autoState = useAutoCompute('topoloom:auto:spqr', query.autorun, {
+    size: state.nodes.length + state.edges.length,
+    maxSize: 150,
+  });
   const [panelRatio, setPanelRatio] = useState(() => {
     if (typeof window === 'undefined') {
       return initialMode === 'INSPECTING' ? DEFAULT_INSPECT_RATIO : DEFAULT_BUILD_RATIO;
@@ -211,7 +187,8 @@ export function SPQRDemo() {
   const [dragging, setDragging] = useState(false);
   const currentSig = useMemo(() => graphSignature(state), [state]);
   const isStale = computedSig !== null && computedSig !== currentSig;
-  const shouldAutoRun = autoRun && mode === 'BUILDING' && (computedSig === null || isStale);
+  const shouldAutoRun =
+    autoState.value && !autoState.disabled && mode === 'BUILDING' && (computedSig === null || isStale);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -387,7 +364,12 @@ export function SPQRDemo() {
       return (
         <div className="space-y-4">
           <GraphEditor state={state} onChange={setState} />
-          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
+          <AutoComputeToggle
+            value={autoState.value}
+            onChange={autoState.setValue}
+            disabled={autoState.disabled}
+            hint={autoState.disabled ? 'Auto recompute paused for large graphs.' : undefined}
+          />
           <Button size="sm" className="w-full" onClick={run}>
             Build SPQR tree
           </Button>

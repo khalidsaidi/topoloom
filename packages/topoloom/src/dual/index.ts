@@ -1,6 +1,8 @@
 import { GraphBuilder } from '../graph';
-import type { EdgeId, VertexId } from '../graph';
+import type { EdgeId, Graph, VertexId } from '../graph';
 import type { FaceId, HalfEdgeMesh } from '../embedding';
+import { buildHalfEdgeMesh } from '../embedding';
+import { testPlanarity, type PlanarityOptions } from '../planarity';
 
 export type DualGraph = {
   graph: ReturnType<GraphBuilder['build']>;
@@ -144,4 +146,93 @@ export function routeEdgeFixedEmbedding(
   const path = dualShortestPath(dual, startFaces, goalFaces, weightFn);
   if (!path) return null;
   return { crossedPrimalEdges: path.primalEdges, faces: path.faces };
+}
+
+export type RouteOnGraphOptions = {
+  planarityFallback?: boolean;
+  planarityOptions?: PlanarityOptions;
+};
+
+export type RouteOnGraphResult = {
+  crossedPrimalEdges: EdgeId[];
+  faces: FaceId[];
+  note?: string;
+  droppedEdges?: EdgeId[];
+};
+
+const buildMaximalPlanarSubgraph = (graph: Graph, options?: PlanarityOptions) => {
+  const kept: Array<{ u: VertexId; v: VertexId; original: EdgeId }> = [];
+  const dropped: EdgeId[] = [];
+  const treatDirected = options?.treatDirectedAsUndirected ?? false;
+  const allowSelfLoops = options?.allowSelfLoops ?? 'reject';
+
+  for (const edge of graph.edges()) {
+    if (edge.u === edge.v) {
+      if (allowSelfLoops === 'ignore') {
+        dropped.push(edge.id);
+        continue;
+      }
+      throw new Error('Dual routing does not support self-loops.');
+    }
+    if (edge.directed && !treatDirected) {
+      throw new Error('Dual routing requires an undirected graph.');
+    }
+    const builder = new GraphBuilder();
+    for (const v of graph.vertices()) builder.addVertex(graph.label(v));
+    for (const keptEdge of kept) builder.addEdge(keptEdge.u, keptEdge.v, false);
+    builder.addEdge(edge.u, edge.v, false);
+    const test = testPlanarity(builder.build(), options);
+    if (test.planar) {
+      kept.push({ u: edge.u, v: edge.v, original: edge.id });
+    } else {
+      dropped.push(edge.id);
+    }
+  }
+
+  const baseBuilder = new GraphBuilder();
+  for (const v of graph.vertices()) baseBuilder.addVertex(graph.label(v));
+  const edgeMap: EdgeId[] = [];
+  for (const keptEdge of kept) {
+    const id = baseBuilder.addEdge(keptEdge.u, keptEdge.v, false);
+    edgeMap[id] = keptEdge.original;
+  }
+  return { graph: baseBuilder.build(), edgeMap, dropped };
+};
+
+export function routeEdgeOnGraph(
+  graph: Graph,
+  u: VertexId,
+  v: VertexId,
+  options: RouteOnGraphOptions = {},
+): RouteOnGraphResult | null {
+  const planarity = testPlanarity(graph, options.planarityOptions);
+  if (planarity.planar) {
+    const mesh = buildHalfEdgeMesh(graph, planarity.embedding);
+    const route = routeEdgeFixedEmbedding(mesh, u, v);
+    if (!route) return null;
+    const note = planarity.ignoredSelfLoops?.length
+      ? `Ignored ${planarity.ignoredSelfLoops.length} self-loop(s) during planarity check.`
+      : undefined;
+    return note ? { ...route, note } : route;
+  }
+
+  if (!options.planarityFallback) return null;
+
+  const { graph: base, edgeMap, dropped } = buildMaximalPlanarSubgraph(
+    graph,
+    options.planarityOptions,
+  );
+  const basePlanarity = testPlanarity(base, options.planarityOptions);
+  if (!basePlanarity.planar) return null;
+  const mesh = buildHalfEdgeMesh(base, basePlanarity.embedding);
+  const route = routeEdgeFixedEmbedding(mesh, u, v);
+  if (!route) return null;
+  const mapped = route.crossedPrimalEdges.map((edgeId) => edgeMap[edgeId] ?? edgeId);
+  const result: RouteOnGraphResult = {
+    crossedPrimalEdges: mapped,
+    faces: route.faces,
+    note: `Nonplanar input: routed on a maximal planar backbone (dropped ${dropped.length} edge(s)).`,
+  };
+  if (dropped.length) result.droppedEdges = dropped;
+  return result;
 }

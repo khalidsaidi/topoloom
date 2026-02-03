@@ -18,6 +18,7 @@ import { orthogonalLayout, type LayoutResult, type EdgePath } from '@khalidsaidi
 import { buildHalfEdgeMesh, rotationFromAdjacency } from '@khalidsaidi/topoloom/embedding';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
+import { useAutoCompute } from '@/lib/useAutoCompute';
 
 export function OrthogonalDemo() {
   const { search } = useLocation();
@@ -48,11 +49,14 @@ export function OrthogonalDemo() {
   const [error, setError] = useState<string | null>(() => initialComputed.error);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialComputed.layout || initialComputed.error ? initialSig : null));
-  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
+  const autoState = useAutoCompute('topoloom:auto:orthogonal', query.autorun, {
+    size: state.nodes.length + state.edges.length,
+    maxSize: 120,
+  });
 
   const currentSig = useMemo(() => graphSignature(state), [state]);
   const isStale = computedSig !== null && computedSig !== currentSig;
-  const shouldAutoRun = autoRun && (computedSig === null || isStale);
+  const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
     const start = performance.now();
@@ -109,7 +113,12 @@ export function OrthogonalDemo() {
             selectedNodeId={selectedNodeId}
             onSelectNode={setSelectedNodeId}
           />
-          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
+          <AutoComputeToggle
+            value={autoState.value}
+            onChange={autoState.setValue}
+            disabled={autoState.disabled}
+            hint={autoState.disabled ? 'Auto recompute paused for large graphs.' : undefined}
+          />
           <Button size="sm" onClick={run}>Compute orthogonal rep</Button>
         </div>
       }
