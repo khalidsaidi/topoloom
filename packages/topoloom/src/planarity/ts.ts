@@ -89,14 +89,38 @@ class LRPlanarity {
     this.rightRef = Array(n).fill(null);
   }
 
+  private numAt(arr: number[], idx: number, label: string): number {
+    const value = arr[idx];
+    if (value === undefined) {
+      throw new Error(`Planarity internal error: ${label}[${idx}] is missing`);
+    }
+    return value;
+  }
+
+  private edgeAt(idx: number): PlanarityEdgeSpec {
+    const edge = this.edges[idx];
+    if (!edge) {
+      throw new Error(`Planarity internal error: edge ${idx} is missing`);
+    }
+    return edge;
+  }
+
+  private listAt(arr: number[][], idx: number): number[] {
+    return arr[idx] ?? [];
+  }
+
   private updateLowpt(parent: number, child: number) {
-    if (this.lowpt[child] < this.lowpt[parent]) {
-      this.lowpt2[parent] = Math.min(this.lowpt[parent], this.lowpt2[parent]);
-      this.lowpt[parent] = this.lowpt[child];
-    } else if (this.lowpt[child] > this.lowpt[parent]) {
-      this.lowpt2[parent] = Math.min(this.lowpt2[parent], this.lowpt[child]);
+    const lowChild = this.numAt(this.lowpt, child, 'lowpt');
+    const lowParent = this.numAt(this.lowpt, parent, 'lowpt');
+    const low2Child = this.numAt(this.lowpt2, child, 'lowpt2');
+    const low2Parent = this.numAt(this.lowpt2, parent, 'lowpt2');
+    if (lowChild < lowParent) {
+      this.lowpt2[parent] = Math.min(lowParent, low2Parent);
+      this.lowpt[parent] = lowChild;
+    } else if (lowChild > lowParent) {
+      this.lowpt2[parent] = Math.min(low2Parent, lowChild);
     } else {
-      this.lowpt2[parent] = Math.min(this.lowpt2[parent], this.lowpt2[child]);
+      this.lowpt2[parent] = Math.min(low2Parent, low2Child);
     }
   }
 
@@ -115,7 +139,8 @@ class LRPlanarity {
           const edgeIdx = frame.edge;
           const v = frame.parentVertex;
           this.nestingDepth[edgeIdx] =
-            2 * this.lowpt[edgeIdx] + (this.lowpt2[edgeIdx] < this.height[v] ? 1 : 0);
+            2 * this.numAt(this.lowpt, edgeIdx, 'lowpt') +
+            (this.numAt(this.lowpt2, edgeIdx, 'lowpt2') < this.numAt(this.height, v, 'height') ? 1 : 0);
           if (frame.parentEdge !== -1) this.updateLowpt(frame.parentEdge, edgeIdx);
           stack.pop();
           continue;
@@ -126,23 +151,24 @@ class LRPlanarity {
           if (frame.parentEdge !== -1) this.parentEdge[frame.v] = frame.parentEdge;
         }
 
-        if (frame.iter >= (this.adj[frame.v]?.length ?? 0)) {
+        const adj = this.listAt(this.adj, frame.v);
+        if (frame.iter >= adj.length) {
           stack.pop();
           continue;
         }
 
-        const edgeIdx = this.adj[frame.v]?.[frame.iter++] ?? -1;
-        if (edgeIdx === -1) continue;
+        const edgeIdx = adj[frame.iter++];
+        if (edgeIdx === undefined) continue;
         if (edgeIdx === frame.parentEdge) continue;
         if (this.edgeFrom[edgeIdx] !== -1) continue;
 
-        const edge = this.edges[edgeIdx];
+        const edge = this.edgeAt(edgeIdx);
         const to = edge.u === frame.v ? edge.v : edge.u;
         this.edgeFrom[edgeIdx] = frame.v;
         this.edgeTo[edgeIdx] = to;
         this.outEdges[frame.v]?.push(edgeIdx);
-        this.lowpt[edgeIdx] = this.height[frame.v];
-        this.lowpt2[edgeIdx] = this.height[frame.v];
+        this.lowpt[edgeIdx] = this.numAt(this.height, frame.v, 'height');
+        this.lowpt2[edgeIdx] = this.numAt(this.height, frame.v, 'height');
 
         if (this.height[to] === -1) {
           stack.push({ type: 'post', edge: edgeIdx, parentEdge: frame.parentEdge, parentVertex: frame.v });
@@ -151,12 +177,13 @@ class LRPlanarity {
             v: to,
             parentEdge: edgeIdx,
             iter: 0,
-            depth: this.height[frame.v] + 1,
+            depth: this.numAt(this.height, frame.v, 'height') + 1,
           });
         } else {
-          this.lowpt[edgeIdx] = this.height[to];
+          this.lowpt[edgeIdx] = this.numAt(this.height, to, 'height');
           this.nestingDepth[edgeIdx] =
-            2 * this.lowpt[edgeIdx] + (this.lowpt2[edgeIdx] < this.height[frame.v] ? 1 : 0);
+            2 * this.numAt(this.lowpt, edgeIdx, 'lowpt') +
+            (this.numAt(this.lowpt2, edgeIdx, 'lowpt2') < this.numAt(this.height, frame.v, 'height') ? 1 : 0);
           if (frame.parentEdge !== -1) this.updateLowpt(frame.parentEdge, edgeIdx);
         }
       }
@@ -164,13 +191,19 @@ class LRPlanarity {
   }
 
   private lowest(pair: ConflictPair): number {
-    if (pair.L.empty()) return this.lowpt[pair.R.low ?? 0];
-    if (pair.R.empty()) return this.lowpt[pair.L.low ?? 0];
-    return Math.min(this.lowpt[pair.L.low ?? 0], this.lowpt[pair.R.low ?? 0]);
+    if (pair.L.empty()) return this.numAt(this.lowpt, pair.R.low ?? 0, 'lowpt');
+    if (pair.R.empty()) return this.numAt(this.lowpt, pair.L.low ?? 0, 'lowpt');
+    return Math.min(
+      this.numAt(this.lowpt, pair.L.low ?? 0, 'lowpt'),
+      this.numAt(this.lowpt, pair.R.low ?? 0, 'lowpt'),
+    );
   }
 
   private conflicting(interval: Interval, edge: number): boolean {
-    return !interval.empty() && this.lowpt[interval.high ?? 0] > this.lowpt[edge];
+    return (
+      !interval.empty() &&
+      this.numAt(this.lowpt, interval.high ?? 0, 'lowpt') > this.numAt(this.lowpt, edge, 'lowpt')
+    );
   }
 
   private addConstraints(edge: number, parent: number): boolean {
@@ -185,7 +218,10 @@ class LRPlanarity {
         Q.R = tmp;
       }
       if (!Q.L.empty()) return false;
-      if (this.lowpt[Q.R.low ?? 0] > this.lowpt[parent]) {
+      if (
+        this.numAt(this.lowpt, Q.R.low ?? 0, 'lowpt') >
+        this.numAt(this.lowpt, parent, 'lowpt')
+      ) {
         if (P.R.empty()) {
           P.R.high = Q.R.high;
         } else if (P.R.low !== null) {
@@ -193,11 +229,12 @@ class LRPlanarity {
         }
         P.R.low = Q.R.low;
       } else {
-        if (Q.R.low !== null) this.ref[Q.R.low] = this.lowptEdge[parent];
+        if (Q.R.low !== null) this.ref[Q.R.low] = this.numAt(this.lowptEdge, parent, 'lowptEdge');
       }
 
       const bottom = this.stackBottom[edge];
-      if (bottom === null ? this.stack.length === 0 : this.stack[this.stack.length - 1] === bottom) {
+      const top = this.stack.at(-1) ?? null;
+      if (bottom === null ? this.stack.length === 0 : top === bottom) {
         break;
       }
     }
@@ -230,14 +267,14 @@ class LRPlanarity {
   }
 
   private checkPlanarity(v: number): boolean {
-    const pEdge = this.parentEdge[v];
+    const pEdge = this.numAt(this.parentEdge, v, 'parentEdge');
     const ordered = this.orderedAdj[v] ?? [];
 
     for (let i = 0; i < ordered.length; i += 1) {
-      const edge = ordered[i] ?? -1;
-      if (edge === -1) continue;
-      const to = this.edgeTo[edge];
-      this.stackBottom[edge] = this.stack.length > 0 ? this.stack[this.stack.length - 1] : null;
+      const edge = ordered[i];
+      if (edge === undefined) continue;
+      const to = this.numAt(this.edgeTo, edge, 'edgeTo');
+      this.stackBottom[edge] = this.stack.at(-1) ?? null;
 
       if (this.parentEdge[to] === edge) {
         if (!this.checkPlanarity(to)) return false;
@@ -246,48 +283,63 @@ class LRPlanarity {
         this.stack.push(new ConflictPair(null, new Interval(edge, edge)));
       }
 
-      if (this.lowpt[edge] < this.height[v]) {
+      if (this.numAt(this.lowpt, edge, 'lowpt') < this.numAt(this.height, v, 'height')) {
         if (i === 0) {
-          if (pEdge !== -1) this.lowptEdge[pEdge] = this.lowptEdge[edge];
-        } else if (!this.addConstraints(edge, pEdge)) {
+          if (pEdge !== -1) this.lowptEdge[pEdge] = this.numAt(this.lowptEdge, edge, 'lowptEdge');
+        } else if (pEdge !== -1 && !this.addConstraints(edge, pEdge)) {
           return false;
         }
       }
     }
 
     if (pEdge !== -1) {
-      const p = this.edgeFrom[pEdge];
-      while (this.stack.length > 0 && this.lowest(this.stack[this.stack.length - 1]) === this.height[p]) {
+      const p = this.numAt(this.edgeFrom, pEdge, 'edgeFrom');
+      while (
+        this.stack.length > 0 &&
+        this.lowest(this.stack[this.stack.length - 1]!) === this.numAt(this.height, p, 'height')
+      ) {
         const P = this.stack.pop();
-        if (P?.L.low !== null) this.side[P.L.low] = -1;
+        if (!P) continue;
+        if (P.L.low !== null) this.side[P.L.low] = -1;
       }
       if (this.stack.length > 0) {
         const P = this.stack.pop();
         if (!P) return false;
-        while (P.L.high !== null && this.edgeTo[P.L.high] === p) {
-          P.L.high = this.ref[P.L.high] !== -1 ? this.ref[P.L.high] : null;
+        while (P.L.high !== null && this.numAt(this.edgeTo, P.L.high, 'edgeTo') === p) {
+          const ref = this.numAt(this.ref, P.L.high, 'ref');
+          P.L.high = ref !== -1 ? ref : null;
         }
         if (P.L.high === null && P.L.low !== null) {
-          this.ref[P.L.low] = P.R.low ?? -1;
-          this.side[P.L.low] = -1;
+          const low = P.L.low;
+          if (low !== undefined) {
+            this.ref[low] = P.R.low ?? -1;
+            this.side[low] = -1;
+          }
           P.L.low = null;
         }
-        while (P.R.high !== null && this.edgeTo[P.R.high] === p) {
-          P.R.high = this.ref[P.R.high] !== -1 ? this.ref[P.R.high] : null;
+        while (P.R.high !== null && this.numAt(this.edgeTo, P.R.high, 'edgeTo') === p) {
+          const ref = this.numAt(this.ref, P.R.high, 'ref');
+          P.R.high = ref !== -1 ? ref : null;
         }
         if (P.R.high === null && P.R.low !== null) {
-          this.ref[P.R.low] = P.L.low ?? -1;
-          this.side[P.R.low] = -1;
+          const low = P.R.low;
+          if (low !== undefined) {
+            this.ref[low] = P.L.low ?? -1;
+            this.side[low] = -1;
+          }
           P.R.low = null;
         }
         this.stack.push(P);
       }
 
-      if (this.lowpt[pEdge] < this.height[p] && this.stack.length > 0) {
-        const top = this.stack[this.stack.length - 1];
+      if (this.numAt(this.lowpt, pEdge, 'lowpt') < this.numAt(this.height, p, 'height') && this.stack.length > 0) {
+        const top = this.stack[this.stack.length - 1]!;
         const H_l = top.L.high;
         const H_r = top.R.high;
-        if (H_l !== null && (H_r === null || this.lowpt[H_l] > this.lowpt[H_r ?? 0])) {
+        if (
+          H_l !== null &&
+          (H_r === null || this.numAt(this.lowpt, H_l, 'lowpt') > this.numAt(this.lowpt, H_r ?? 0, 'lowpt'))
+        ) {
           this.ref[pEdge] = H_l;
         } else {
           this.ref[pEdge] = H_r ?? -1;
@@ -299,31 +351,33 @@ class LRPlanarity {
   }
 
   private sign(edge: number): number {
-    const ref = this.ref[edge];
+    const ref = this.numAt(this.ref, edge, 'ref');
     if (ref !== -1) {
-      this.side[edge] *= this.sign(ref);
+      const current = this.numAt(this.side, edge, 'side');
+      this.side[edge] = current * this.sign(ref);
       this.ref[edge] = -1;
     }
-    return this.side[edge];
+    return this.numAt(this.side, edge, 'side');
   }
 
   private dfsEmbedding(v: number) {
     const ordered = this.orderedAdj[v] ?? [];
     for (const edge of ordered) {
-      const to = this.edgeTo[edge];
-      if (this.parentEdge[to] === edge) {
+      if (edge === undefined) continue;
+      const to = this.numAt(this.edgeTo, edge, 'edgeTo');
+      if (this.numAt(this.parentEdge, to, 'parentEdge') === edge) {
         this.embeddingAdj[to]?.unshift(edge);
         this.leftRef[v] = edge;
         this.rightRef[v] = edge;
         this.dfsEmbedding(to);
       } else if (this.side[edge] === 1) {
-        const ref = this.rightRef[to];
-        const list = this.embeddingAdj[to];
+        const ref = this.rightRef[to] ?? null;
+        const list = this.embeddingAdj[to] ?? (this.embeddingAdj[to] = []);
         const idx = ref === null ? list.length - 1 : list.indexOf(ref);
         list.splice(Math.max(idx + 1, 0), 0, edge);
       } else {
-        const ref = this.leftRef[to];
-        const list = this.embeddingAdj[to];
+        const ref = this.leftRef[to] ?? null;
+        const list = this.embeddingAdj[to] ?? (this.embeddingAdj[to] = []);
         const idx = ref === null ? 0 : list.indexOf(ref);
         list.splice(Math.max(idx, 0), 0, edge);
         this.leftRef[to] = edge;
@@ -338,10 +392,11 @@ class LRPlanarity {
     this.orientEdges();
 
     this.orderedAdj = Array.from({ length: this.n }, (_, v) =>
-      (this.outEdges[v] ?? []).slice().sort((a, b) => {
-        const da = this.nestingDepth[a] - this.nestingDepth[b];
+      this.listAt(this.outEdges, v).slice().sort((a, b) => {
+        if (a === undefined || b === undefined) return 0;
+        const da = this.numAt(this.nestingDepth, a, 'nestingDepth') - this.numAt(this.nestingDepth, b, 'nestingDepth');
         if (da !== 0) return da;
-        return this.edges[a]?.id - this.edges[b]?.id;
+        return this.edgeAt(a).id - this.edgeAt(b).id;
       }),
     );
 
@@ -350,14 +405,16 @@ class LRPlanarity {
     }
 
     for (let i = 0; i < this.edges.length; i += 1) {
-      this.nestingDepth[i] = this.nestingDepth[i] * this.sign(i);
+      const depth = this.numAt(this.nestingDepth, i, 'nestingDepth');
+      this.nestingDepth[i] = depth * this.sign(i);
     }
 
     this.orderedAdj = Array.from({ length: this.n }, (_, v) =>
-      (this.outEdges[v] ?? []).slice().sort((a, b) => {
-        const da = this.nestingDepth[a] - this.nestingDepth[b];
+      this.listAt(this.outEdges, v).slice().sort((a, b) => {
+        if (a === undefined || b === undefined) return 0;
+        const da = this.numAt(this.nestingDepth, a, 'nestingDepth') - this.numAt(this.nestingDepth, b, 'nestingDepth');
         if (da !== 0) return da;
-        return this.edges[a]?.id - this.edges[b]?.id;
+        return this.edgeAt(a).id - this.edgeAt(b).id;
       }),
     );
 
@@ -374,9 +431,12 @@ class LRPlanarity {
       const list = this.embeddingAdj[v] ?? [];
       const output = order[v];
       for (const edgeIdx of list) {
-        const edge = this.edges[edgeIdx];
-        if (!edge) continue;
-        const other = this.edgeFrom[edgeIdx] === v ? this.edgeTo[edgeIdx] : this.edgeFrom[edgeIdx];
+        if (edgeIdx === undefined) continue;
+        const edge = this.edgeAt(edgeIdx);
+        const other =
+          this.numAt(this.edgeFrom, edgeIdx, 'edgeFrom') === v
+            ? this.numAt(this.edgeTo, edgeIdx, 'edgeTo')
+            : this.numAt(this.edgeFrom, edgeIdx, 'edgeFrom');
         output?.push({ edge: edge.id, to: other as VertexId });
       }
     }
@@ -400,7 +460,9 @@ const suppressDegreeTwo = (edges: Array<[VertexId, VertexId]>): Array<[VertexId,
       if (deg !== 2) continue;
       const incident = current.filter(([u, w]) => u === v || w === v);
       if (incident.length !== 2) continue;
-      const [e1, e2] = incident;
+      const e1 = incident[0];
+      const e2 = incident[1];
+      if (!e1 || !e2) continue;
       const a = e1[0] === v ? e1[1] : e1[0];
       const b = e2[0] === v ? e2[1] : e2[0];
       current = current.filter((edge) => edge !== e1 && edge !== e2);

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { GraphBuilder } from '../src/graph';
 import { testPlanarity } from '../src/planarity';
+import { planarityWitness } from '../src/planarity/ts';
 import { buildHalfEdgeMesh, validateMesh } from '../src/embedding';
 
 const edgeListToGraph = (edges: Array<[number, number]>): GraphBuilder => {
@@ -180,5 +181,46 @@ describe('planarity', () => {
     const g = builder.build();
     const result = testPlanarity(g, { backend: 'auto', maxTsVertices: 0 });
     expect(result.planar).toBe(true);
+  });
+
+  it('prunes redundant edges when extracting a witness', () => {
+    const builder = new GraphBuilder();
+    for (let i = 0; i < 6; i += 1) builder.addVertex(i);
+    const left = [0, 1, 2];
+    const right = [3, 4, 5];
+    for (const u of left) {
+      for (const v of right) builder.addEdge(u, v, false);
+    }
+    // Add a redundant edge that keeps the graph nonplanar even when removed.
+    builder.addEdge(0, 1, false);
+    const g = builder.build();
+    const witness = planarityWitness(
+      g.vertexCount(),
+      g.edges().map((edge) => ({ id: edge.id, u: edge.u, v: edge.v })),
+    );
+    expect(witness.edges.length).toBe(9);
+  });
+
+  it('classifies non-bipartite 6-vertex 9-edge witnesses as K3,3 fallback', () => {
+    const builder = new GraphBuilder();
+    for (let i = 0; i < 6; i += 1) builder.addVertex(i);
+    const left = [0, 1, 2];
+    const right = [3, 4, 5];
+    for (const u of left) {
+      for (const v of right) {
+        if ((u === 2 && v === 5) || (u === 1 && v === 4)) continue;
+        builder.addEdge(u, v, false);
+      }
+    }
+    // Add same-side edges to break bipartiteness while keeping 9 edges
+    // and avoid degree-2 suppression.
+    builder.addEdge(1, 2, false);
+    builder.addEdge(4, 5, false);
+    const g = builder.build();
+    const witness = planarityWitness(
+      g.vertexCount(),
+      g.edges().map((edge) => ({ id: edge.id, u: edge.u, v: edge.v })),
+    );
+    expect(witness.type).toBe('K3,3');
   });
 });
