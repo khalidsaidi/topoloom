@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AutoComputeToggle } from '@/components/demo/AutoComputeToggle';
+import { ComputeStatusBadge } from '@/components/demo/ComputeStatusBadge';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
 import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
@@ -159,6 +159,7 @@ export function SPQRDemo() {
   const [rotationOverride, setRotationOverride] = useState<Map<number, unknown>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [sourceNote, setSourceNote] = useState<string | null>(() => initialComputed.note);
+  const [computing, setComputing] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(() =>
     typeof window === 'undefined' ? 'horizontal' : getLayoutMode(window.innerWidth),
   );
@@ -243,21 +244,26 @@ export function SPQRDemo() {
   }, [dragging, layoutMode, updateRatio]);
 
   const run = useCallback(() => {
-    try {
-      const { tree: spqr, note } = computeSpqr(state);
-      setTree(spqr);
-      setSelectedNodeId(spqr.nodes[0]?.id ?? null);
-      setSourceNote(note);
-      setMode('INSPECTING');
-      setComputedSig(currentSig);
-      if (layoutMode === 'stacked') setMobileView('visual');
-      setError(null);
-      if (!userResized) setPanelRatio(DEFAULT_INSPECT_RATIO);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unable to build SPQR tree.';
-      setError(message);
-      toast.error(message);
-    }
+    setComputing(true);
+    window.setTimeout(() => {
+      try {
+        const { tree: spqr, note } = computeSpqr(state);
+        setTree(spqr);
+        setSelectedNodeId(spqr.nodes[0]?.id ?? null);
+        setSourceNote(note);
+        setMode('INSPECTING');
+        setComputedSig(currentSig);
+        if (layoutMode === 'stacked') setMobileView('visual');
+        setError(null);
+        if (!userResized) setPanelRatio(DEFAULT_INSPECT_RATIO);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unable to build SPQR tree.';
+        setError(message);
+        toast.error(message);
+      } finally {
+        setComputing(false);
+      }
+    }, 0);
   }, [computeSpqr, currentSig, layoutMode, state, userResized]);
 
   useEffect(() => {
@@ -509,9 +515,7 @@ export function SPQRDemo() {
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-2xl font-semibold text-foreground">SPQR</h2>
-          <Badge variant="secondary">
-            {tree ? 'Tree ready' : 'Pending'}
-          </Badge>
+          <ComputeStatusBadge computing={computing} label={tree ? 'Tree ready' : 'Pending'} />
         </div>
         <p className="max-w-3xl text-sm text-muted-foreground">
           Decompose biconnected graphs into S/P/R/Q nodes and inspect skeletons.

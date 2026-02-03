@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ComputeStatusBadge } from '@/components/demo/ComputeStatusBadge';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
@@ -63,6 +63,7 @@ export function OrthogonalDemo() {
   const [error, setError] = useState<string | null>(() => initialComputed.error);
   const [note, setNote] = useState<string | null>(() => (initialComputed as { note?: string | null }).note ?? null);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [computing, setComputing] = useState(false);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialComputed.layout || initialComputed.error ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:orthogonal', query.autorun, {
     size: state.nodes.length + state.edges.length,
@@ -75,14 +76,18 @@ export function OrthogonalDemo() {
   const showComputed = Boolean(layout) && !isStale;
 
   const run = useCallback(() => {
-    const start = performance.now();
-    const next = computeLayout(state);
-    setLayout(next.layout);
-    setRuntimeMs(Math.round(performance.now() - start));
-    setError(next.error);
-    setNote((next as { note?: string | null }).note ?? null);
-    if (next.error) toast.error(next.error);
-    setComputedSig(currentSig);
+    setComputing(true);
+    window.setTimeout(() => {
+      const start = performance.now();
+      const next = computeLayout(state);
+      setLayout(next.layout);
+      setRuntimeMs(Math.round(performance.now() - start));
+      setError(next.error);
+      setNote((next as { note?: string | null }).note ?? null);
+      if (next.error) toast.error(next.error);
+      setComputedSig(currentSig);
+      setComputing(false);
+    }, 0);
   }, [currentSig, state]);
 
   useEffect(() => {
@@ -118,9 +123,11 @@ export function OrthogonalDemo() {
       embed={query.embed}
       ready={Boolean(layout) || Boolean(error)}
       status={(
-        <Badge variant={error ? 'destructive' : 'secondary'}>
-          {error ? 'Error' : layout ? 'Drawn' : 'Pending'}
-        </Badge>
+        <ComputeStatusBadge
+          computing={computing}
+          label={error ? 'Error' : layout ? 'Drawn' : 'Pending'}
+          variant={error ? 'destructive' : 'secondary'}
+        />
       )}
       inputControls={
         <div className="space-y-4">

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ComputeStatusBadge } from '@/components/demo/ComputeStatusBadge';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
@@ -28,6 +28,7 @@ export function PlanarizationDemo() {
   const [state, setState] = useState<GraphState>(() => initialState);
   const [result, setResult] = useState<PlanarizationResult | null>(() => initialResult);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [computing, setComputing] = useState(false);
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:planarization', query.autorun, {
@@ -41,12 +42,16 @@ export function PlanarizationDemo() {
   const showComputed = Boolean(result) && !isStale;
 
   const run = useCallback(() => {
-    const start = performance.now();
-    const graph = toTopoGraph(state, { forceUndirected: true });
-    const layout = planarizationLayout(graph);
-    setResult(layout);
-    setRuntimeMs(Math.round(performance.now() - start));
-    setComputedSig(currentSig);
+    setComputing(true);
+    window.setTimeout(() => {
+      const start = performance.now();
+      const graph = toTopoGraph(state, { forceUndirected: true });
+      const layout = planarizationLayout(graph);
+      setResult(layout);
+      setRuntimeMs(Math.round(performance.now() - start));
+      setComputedSig(currentSig);
+      setComputing(false);
+    }, 0);
   }, [currentSig, state]);
 
   useEffect(() => {
@@ -81,7 +86,9 @@ export function PlanarizationDemo() {
       expectations={demoExpectations.planarization}
       embed={query.embed}
       ready={Boolean(result)}
-      status={<Badge variant="secondary">{result ? 'Done' : 'Pending'}</Badge>}
+      status={
+        <ComputeStatusBadge computing={computing} label={result ? 'Done' : 'Pending'} />
+      }
       inputControls={
         <div className="space-y-4">
           <GraphEditor

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ComputeStatusBadge } from '@/components/demo/ComputeStatusBadge';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
@@ -43,6 +43,7 @@ export function StBipolarDemo() {
     () => initialResult,
   );
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [computing, setComputing] = useState(false);
   const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:st-bipolar', query.autorun, {
@@ -55,14 +56,18 @@ export function StBipolarDemo() {
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const run = useCallback(() => {
-    const start = performance.now();
-    const graph = toTopoGraph(state, { forceUndirected: true });
-    const numbering = stNumbering(graph, s, t);
-    const mesh = buildHalfEdgeMesh(graph, rotationFromAdjacency(graph));
-    const bipolar = bipolarOrientation(mesh, s, t);
-    setResult({ numbering, bipolar });
-    setRuntimeMs(Math.round(performance.now() - start));
-    setComputedSig(currentSig);
+    setComputing(true);
+    window.setTimeout(() => {
+      const start = performance.now();
+      const graph = toTopoGraph(state, { forceUndirected: true });
+      const numbering = stNumbering(graph, s, t);
+      const mesh = buildHalfEdgeMesh(graph, rotationFromAdjacency(graph));
+      const bipolar = bipolarOrientation(mesh, s, t);
+      setResult({ numbering, bipolar });
+      setRuntimeMs(Math.round(performance.now() - start));
+      setComputedSig(currentSig);
+      setComputing(false);
+    }, 0);
   }, [currentSig, s, state, t]);
 
   useEffect(() => {
@@ -88,7 +93,9 @@ export function StBipolarDemo() {
       expectations={demoExpectations.stBipolar}
       embed={query.embed}
       ready={Boolean(result)}
-      status={<Badge variant="secondary">{result ? 'Computed' : 'Pending'}</Badge>}
+      status={
+        <ComputeStatusBadge computing={computing} label={result ? 'Computed' : 'Pending'} />
+      }
       inputControls={
         <div className="space-y-4">
           <GraphEditor
