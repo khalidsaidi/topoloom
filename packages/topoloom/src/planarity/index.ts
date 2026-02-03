@@ -1,6 +1,7 @@
 import type { EdgeId, Graph, VertexId } from '../graph';
 import type { RotationSystem } from '../embedding';
 import { allocInt32Ptr, getPlanarityWasm, viewInt32 } from './wasm';
+import { planarityLeftRight, planarityWitness, type PlanarityEdgeSpec } from './ts';
 
 export type PlanarityWitness = {
   type: 'K5' | 'K3,3';
@@ -11,6 +12,8 @@ export type PlanarityWitness = {
 export type PlanarityOptions = {
   treatDirectedAsUndirected?: boolean;
   allowSelfLoops?: 'reject' | 'ignore';
+  backend?: 'auto' | 'wasm' | 'ts';
+  maxTsVertices?: number;
 };
 
 export type PlanarityMeta = {
@@ -26,11 +29,17 @@ const EMBEDFLAGS_PLANAR = 1;
 const OK = 1;
 const NONEMBEDDABLE = -1;
 
+const toPlanarityEdges = (edges: ReturnType<Graph['edges']>): PlanarityEdgeSpec[] => {
+  return edges.map((edge) => ({ id: edge.id, u: edge.u, v: edge.v }));
+};
+
 export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): PlanarityResult {
   const n = graph.vertexCount();
   const edges = graph.edges();
   const treatDirected = options.treatDirectedAsUndirected ?? true;
   const allowSelfLoops = options.allowSelfLoops ?? 'ignore';
+  const backend = options.backend ?? 'auto';
+  const maxTsVertices = options.maxTsVertices ?? 250;
   const ignoredSelfLoops: EdgeId[] = [];
   const loopsByVertex: EdgeId[][] = Array.from({ length: n }, () => []);
   const included: typeof edges = [];
@@ -70,6 +79,35 @@ export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): Pla
     if (ignoredSelfLoops.length) meta.ignoredSelfLoops = ignoredSelfLoops;
     if (treatDirected) meta.treatedDirectedAsUndirected = true;
     return { planar: true, embedding: { order }, ...meta };
+  }
+
+  const meta: PlanarityMeta = {};
+  if (ignoredSelfLoops.length) meta.ignoredSelfLoops = ignoredSelfLoops;
+  if (treatDirected) meta.treatedDirectedAsUndirected = true;
+
+  const planarityEdges = toPlanarityEdges(included);
+  const useTs =
+    backend === 'ts' ||
+    (backend === 'auto' &&
+      (typeof WebAssembly === 'undefined' || n <= Math.max(1, maxTsVertices)));
+
+  if (useTs) {
+    const embedding = planarityLeftRight(n, planarityEdges);
+    if (embedding) {
+      loopsByVertex.forEach((loops, v) => {
+        if (!loops.length) return;
+        loops.sort((a, b) => a - b);
+        const list = embedding.order[v] ?? [];
+        for (const edgeId of loops) {
+          list.push({ edge: edgeId, to: v });
+          list.push({ edge: edgeId, to: v });
+        }
+        embedding.order[v] = list;
+      });
+      return { planar: true, embedding, ...meta };
+    }
+    const witness = planarityWitness(n, planarityEdges);
+    return { planar: false, witness, ...meta };
   }
 
   const wasm = getPlanarityWasm();
@@ -141,9 +179,6 @@ export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): Pla
           }
           order[v] = list;
         });
-        const meta: PlanarityMeta = {};
-        if (ignoredSelfLoops.length) meta.ignoredSelfLoops = ignoredSelfLoops;
-        if (treatDirected) meta.treatedDirectedAsUndirected = true;
         result = { planar: true, embedding: { order }, ...meta };
       } finally {
         wasm.free(offsetsPtr);
@@ -170,9 +205,6 @@ export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): Pla
           .filter((id) => id >= 0) as EdgeId[];
         const verticesOut = Array.from(vertexView).filter((id) => id >= 0) as VertexId[];
 
-        const meta: PlanarityMeta = {};
-        if (ignoredSelfLoops.length) meta.ignoredSelfLoops = ignoredSelfLoops;
-        if (treatDirected) meta.treatedDirectedAsUndirected = true;
         result = {
           planar: false,
           witness: {
