@@ -30,7 +30,7 @@ export function GettingStarted() {
         </CardHeader>
         <CardContent>
           <pre className="rounded-lg bg-muted/40 p-4 text-xs">
-{`import { graph, planarity } from 'topoloom';
+{`import { graph, planarity } from '/topoloom';
 
 const g = graph.fromEdgeList([
   ['a', 'b'],
