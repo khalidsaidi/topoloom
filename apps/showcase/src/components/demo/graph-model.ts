@@ -24,6 +24,10 @@ export type GraphState = {
 
 export type PresetKey = keyof typeof presets;
 
+export type GraphBuildOptions = {
+  forceUndirected?: boolean;
+};
+
 export const resolvePreset = (key: string | undefined, fallback: PresetKey): PresetKey => {
   if (key && key in presets) return key as PresetKey;
   return fallback;
@@ -209,7 +213,7 @@ export const presets = {
   ),
 } as const;
 
-export function toTopoGraph(state: GraphState) {
+export function toTopoGraph(state: GraphState, options?: GraphBuildOptions) {
   const builder = new GraphBuilder();
   const idMap = new Map<number, number>();
   for (const node of state.nodes) {
@@ -219,7 +223,23 @@ export function toTopoGraph(state: GraphState) {
   for (const edge of state.edges) {
     const u = idMap.get(edge.source) ?? 0;
     const v = idMap.get(edge.target) ?? 0;
-    builder.addEdge(u, v, edge.directed);
+    const directed = options?.forceUndirected ? false : edge.directed;
+    builder.addEdge(u, v, directed);
   }
   return builder.build();
+}
+
+export function graphSignature(state: GraphState): string {
+  const nodes = [...state.nodes]
+    .map((node) => ({ id: node.id, label: node.label }))
+    .sort((a, b) => a.id - b.id);
+  const edges = [...state.edges]
+    .map((edge) => ({
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      directed: edge.directed,
+    }))
+    .sort((a, b) => a.id - b.id);
+  return JSON.stringify({ directed: state.directed, nodes, edges });
 }

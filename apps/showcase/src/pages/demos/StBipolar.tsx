@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
+import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
@@ -22,9 +23,10 @@ export function StBipolarDemo() {
   const initialState = presets[presetKey];
   const initialS = initialState.nodes[0]?.id ?? 0;
   const initialT = initialState.nodes[initialState.nodes.length - 1]?.id ?? initialS;
+  const initialSig = graphSignature(initialState);
   const initialResult = (() => {
     if (!query.autorun) return null;
-    const graph = toTopoGraph(initialState);
+    const graph = toTopoGraph(initialState, { forceUndirected: true });
     const numbering = stNumbering(graph, initialS, initialT);
     const mesh = buildHalfEdgeMesh(graph, rotationFromAdjacency(graph));
     const bipolar = bipolarOrientation(mesh, initialS, initialT);
@@ -36,14 +38,19 @@ export function StBipolarDemo() {
   const [result, setResult] = useState<{ numbering: StNumbering; bipolar: BipolarOrientation } | null>(
     () => initialResult,
   );
+  const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
+
+  const currentSig = useMemo(() => `${graphSignature(state)}|${s}:${t}`, [state, s, t]);
+  const isStale = computedSig !== null && computedSig !== currentSig;
 
   const run = useCallback(() => {
-    const graph = toTopoGraph(state);
+    const graph = toTopoGraph(state, { forceUndirected: true });
     const numbering = stNumbering(graph, s, t);
     const mesh = buildHalfEdgeMesh(graph, rotationFromAdjacency(graph));
     const bipolar = bipolarOrientation(mesh, s, t);
     setResult({ numbering, bipolar });
-  }, [s, state, t]);
+    setComputedSig(currentSig);
+  }, [currentSig, s, state, t]);
   const handleStateChange = (next: GraphState) => {
     const ids = next.nodes.map((node) => node.id);
     const nextS = ids.includes(s) ? s : ids[0] ?? 0;
@@ -51,7 +58,6 @@ export function StBipolarDemo() {
     setState(next);
     setS(nextS);
     setT(nextT);
-    setResult(null);
   };
 
   const edges = useMemo(() => edgePathsFromState(state), [state]);
@@ -95,18 +101,21 @@ export function StBipolarDemo() {
         </div>
       }
       outputOverlay={
-        <SvgViewport
-          nodes={state.nodes}
-          edges={edges}
-          onNodeMove={(id, dx, dy) => {
-            setState((prev) => ({
-              ...prev,
-              nodes: prev.nodes.map((node) =>
-                node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
-              ),
-            }));
-          }}
-        />
+        <div className="space-y-3">
+          <RecomputeBanner visible={isStale} onRecompute={run} />
+          <SvgViewport
+            nodes={state.nodes}
+            edges={edges}
+            onNodeMove={(id, dx, dy) => {
+              setState((prev) => ({
+                ...prev,
+                nodes: prev.nodes.map((node) =>
+                  node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
+                ),
+              }));
+            }}
+          />
+        </div>
       }
       inspector={<JsonInspector data={result ?? { status: 'pending' }} />}
     />

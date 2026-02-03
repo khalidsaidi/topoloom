@@ -6,15 +6,17 @@ import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
+import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
 import { testPlanarity } from '@khalidsaidi/topoloom/planarity';
 import { buildHalfEdgeMesh } from '@khalidsaidi/topoloom/embedding';
 import { routeEdgeFixedEmbedding } from '@khalidsaidi/topoloom/dual';
+import { GraphBuilder, type Graph, type EdgeId } from '@khalidsaidi/topoloom/graph';
 
 export function DualRoutingDemo() {
   const { search } = useLocation();
@@ -23,29 +25,64 @@ export function DualRoutingDemo() {
   const initialState = presets[presetKey];
   const initialU = initialState.nodes[0]?.id ?? 0;
   const initialV = initialState.nodes[initialState.nodes.length - 1]?.id ?? initialU;
-  const computeRoute = (graphState: GraphState, from: number, to: number) => {
-    const graph = toTopoGraph(graphState);
-    const planarity = testPlanarity(graph);
-    if (!planarity.planar) {
-      return { error: 'Graph is nonplanar' };
+  const initialSig = graphSignature(initialState);
+
+  const buildPlanarSubgraph = useCallback((graph: Graph) => {
+    const kept: Array<{ u: number; v: number; id: EdgeId }> = [];
+    const dropped: EdgeId[] = [];
+    for (const edge of graph.edges()) {
+      const builder = new GraphBuilder();
+      for (const v of graph.vertices()) builder.addVertex(graph.label(v));
+      for (const keptEdge of kept) builder.addEdge(keptEdge.u, keptEdge.v, false);
+      builder.addEdge(edge.u, edge.v, false);
+      const test = testPlanarity(builder.build());
+      if (test.planar) {
+        kept.push({ u: edge.u, v: edge.v, id: edge.id });
+      } else {
+        dropped.push(edge.id);
+      }
     }
-    const mesh = buildHalfEdgeMesh(graph, planarity.embedding);
+    const baseBuilder = new GraphBuilder();
+    for (const v of graph.vertices()) baseBuilder.addVertex(graph.label(v));
+    for (const keptEdge of kept) baseBuilder.addEdge(keptEdge.u, keptEdge.v, false);
+    return { base: baseBuilder.build(), dropped };
+  }, []);
+
+  const computeRoute = useCallback((graphState: GraphState, from: number, to: number) => {
+    const graph = toTopoGraph(graphState, { forceUndirected: true });
+    let planarity = testPlanarity(graph);
+    let routingGraph = graph;
+    let repairNote: string | null = null;
+    if (!planarity.planar) {
+      const { base, dropped } = buildPlanarSubgraph(graph);
+      planarity = testPlanarity(base);
+      if (!planarity.planar) {
+        return { error: 'Unable to derive a planar embedding for routing.' };
+      }
+      routingGraph = base;
+      repairNote = `Nonplanar input: routing on maximal planar subgraph (dropped ${dropped.length} edge(s)).`;
+    }
+    const mesh = buildHalfEdgeMesh(routingGraph, planarity.embedding);
     const route = routeEdgeFixedEmbedding(mesh, from, to);
     if (!route) {
       return { error: 'No dual route found for the selected vertices.' };
     }
-    return route;
-  };
+    return repairNote ? { ...route, note: repairNote } : route;
+  }, [buildPlanarSubgraph]);
   const initialResult = query.autorun ? computeRoute(initialState, initialU, initialV) : null;
   const [state, setState] = useState<GraphState>(() => initialState);
   const [u, setU] = useState<number>(initialU);
   const [v, setV] = useState<number>(initialV);
   const [result, setResult] = useState<
-    ReturnType<typeof routeEdgeFixedEmbedding> | { error: string } | null
+    (ReturnType<typeof routeEdgeFixedEmbedding> & { note?: string }) | { error: string } | null
   >(() => initialResult);
   const [highlighted, setHighlighted] = useState<Set<number>>(
     () => new Set((initialResult && 'crossedPrimalEdges' in initialResult ? initialResult.crossedPrimalEdges : []) ?? []),
   );
+  const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
+
+  const currentSig = useMemo(() => `${graphSignature(state)}|${u}:${v}`, [state, u, v]);
+  const isStale = computedSig !== null && computedSig !== currentSig;
 
   const run = useCallback(() => {
     const route = computeRoute(state, u, v);
@@ -53,7 +90,8 @@ export function DualRoutingDemo() {
     setHighlighted(
       new Set('crossedPrimalEdges' in route ? route.crossedPrimalEdges ?? [] : []),
     );
-  }, [state, u, v]);
+    setComputedSig(currentSig);
+  }, [computeRoute, currentSig, state, u, v]);
 
   const handleStateChange = (next: GraphState) => {
     const ids = next.nodes.map((node) => node.id);
@@ -62,7 +100,6 @@ export function DualRoutingDemo() {
     setState(next);
     setU(nextU);
     setV(nextV);
-    setResult(null);
     setHighlighted(new Set());
   };
 
@@ -107,19 +144,27 @@ export function DualRoutingDemo() {
         </div>
       }
       outputOverlay={
-        <SvgViewport
-          nodes={state.nodes}
-          edges={edges}
-          highlightedEdges={highlighted}
-          onNodeMove={(id, dx, dy) => {
-            setState((prev) => ({
-              ...prev,
-              nodes: prev.nodes.map((node) =>
-                node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
-              ),
-            }));
-          }}
-        />
+        <div className="space-y-3">
+          <RecomputeBanner visible={isStale} onRecompute={run} />
+          <SvgViewport
+            nodes={state.nodes}
+            edges={edges}
+            highlightedEdges={highlighted}
+            onNodeMove={(id, dx, dy) => {
+              setState((prev) => ({
+                ...prev,
+                nodes: prev.nodes.map((node) =>
+                  node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
+                ),
+              }));
+            }}
+          />
+          {result && 'note' in result && result.note ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              {result.note}
+            </div>
+          ) : null}
+        </div>
       }
       inspector={<JsonInspector data={result ?? { status: 'pending' }} />}
     />

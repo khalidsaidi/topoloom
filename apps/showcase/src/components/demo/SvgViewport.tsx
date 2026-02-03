@@ -111,10 +111,20 @@ export function SvgViewport({
     <div
       data-testid="viewport"
       className={cn(
-        'h-[360px] w-full overflow-hidden rounded-xl border bg-background/70 sm:h-[460px] md:h-[560px] lg:h-[70vh] xl:h-[74vh]',
+        'relative h-[360px] w-full overflow-hidden rounded-xl border bg-background/70 sm:h-[460px] md:h-[560px] lg:h-[70vh] xl:h-[74vh]',
         className,
       )}
     >
+      <button
+        type="button"
+        className="absolute right-3 top-3 z-10 rounded-md border bg-background/90 px-2 py-1 text-[10px] text-muted-foreground shadow-sm transition hover:text-foreground"
+        onClick={() => {
+          setScale(1);
+          setOffset({ x: 0, y: 0 });
+        }}
+      >
+        Reset view
+      </button>
       <svg
         ref={svgRef}
         viewBox={viewBox}

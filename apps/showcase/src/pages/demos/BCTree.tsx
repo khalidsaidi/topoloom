@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
+import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
@@ -19,9 +20,10 @@ export function BCTreeDemo() {
   const query = readDemoQuery(search);
   const presetKey = resolvePreset(query.preset, 'squareDiagonal' satisfies PresetKey);
   const initialState = presets[presetKey];
+  const initialSig = graphSignature(initialState);
   const initial = (() => {
     if (!query.autorun) return null;
-    const graph = toTopoGraph(initialState);
+    const graph = toTopoGraph(initialState, { forceUndirected: true });
     const bccRes = biconnectedComponents(graph);
     const treeRes = buildBCTree(graph, bccRes);
     return { bcc: bccRes, tree: treeRes };
@@ -30,20 +32,22 @@ export function BCTreeDemo() {
   const [bcc, setBcc] = useState<BiconnectedResult | null>(() => initial?.bcc ?? null);
   const [tree, setTree] = useState<BCTree | null>(() => initial?.tree ?? null);
   const [selectedBlock, setSelectedBlock] = useState<number | null>(() => (initial ? 0 : null));
+  const [computedSig, setComputedSig] = useState<string | null>(() => (initial ? initialSig : null));
+
+  const currentSig = useMemo(() => graphSignature(state), [state]);
+  const isStale = computedSig !== null && computedSig !== currentSig;
 
   const run = useCallback(() => {
-    const graph = toTopoGraph(state);
+    const graph = toTopoGraph(state, { forceUndirected: true });
     const bccRes = biconnectedComponents(graph);
     const treeRes = buildBCTree(graph, bccRes);
     setBcc(bccRes);
     setTree(treeRes);
     setSelectedBlock(0);
-  }, [state]);
+    setComputedSig(currentSig);
+  }, [currentSig, state]);
   const handleStateChange = (next: GraphState) => {
     setState(next);
-    setBcc(null);
-    setTree(null);
-    setSelectedBlock(null);
   };
 
   const highlightedEdges = useMemo(() => {
@@ -80,19 +84,22 @@ export function BCTreeDemo() {
         </div>
       }
       outputOverlay={
-        <SvgViewport
-          nodes={state.nodes}
-          edges={edgePathsFromState(state)}
-          highlightedEdges={highlightedEdges}
-          onNodeMove={(id, dx, dy) => {
-            setState((prev) => ({
-              ...prev,
-              nodes: prev.nodes.map((node) =>
-                node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
-              ),
-            }));
-          }}
-        />
+        <div className="space-y-3">
+          <RecomputeBanner visible={isStale} onRecompute={run} />
+          <SvgViewport
+            nodes={state.nodes}
+            edges={edgePathsFromState(state)}
+            highlightedEdges={highlightedEdges}
+            onNodeMove={(id, dx, dy) => {
+              setState((prev) => ({
+                ...prev,
+                nodes: prev.nodes.map((node) =>
+                  node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
+                ),
+              }));
+            }}
+          />
+        </div>
       }
       inspector={<JsonInspector data={tree ?? { status: 'pending' }} />}
     />

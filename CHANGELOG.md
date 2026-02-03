@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.7 — 2026-02-03
+- Remove directed-input rejection in orthogonal demo (treated as undirected for geometry).
+- Auto-repair SPQR and dual routing demos by selecting biconnected blocks / planar backbones.
+- Add recompute banners + viewport reset button and increase kernel test coverage.
+
 ## v0.2.6 — 2026-02-03
 - Make demo outputs screenshot-ready via embed/autorun query params and capture framing markers.
 - Prioritize graph visibility: output-first layout, no expectation overlap, and clearer SPQR inspector flow.

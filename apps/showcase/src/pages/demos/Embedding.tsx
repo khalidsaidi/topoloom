@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
-import { presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
+import { graphSignature, presets, resolvePreset, toTopoGraph, type PresetKey } from '@/components/demo/graph-model';
 import type { GraphState } from '@/components/demo/graph-model';
 import { edgePathsFromState } from '@/components/demo/graph-utils';
 import { readDemoQuery } from '@/lib/demoQuery';
@@ -19,9 +20,10 @@ export function EmbeddingDemo() {
   const query = readDemoQuery(search);
   const presetKey = resolvePreset(query.preset, 'k4' satisfies PresetKey);
   const initialState = presets[presetKey];
+  const initialSig = graphSignature(initialState);
   const initialMesh = (() => {
     if (!query.autorun) return null;
-    const graph = toTopoGraph(initialState);
+    const graph = toTopoGraph(initialState, { forceUndirected: true });
     const rotation = rotationFromAdjacency(graph);
     return buildHalfEdgeMesh(graph, rotation);
   })();
@@ -29,20 +31,22 @@ export function EmbeddingDemo() {
   const [mesh, setMesh] = useState<HalfEdgeMesh | null>(() => initialMesh);
   const [selectedFace, setSelectedFace] = useState<number | null>(() => (initialMesh ? 0 : null));
   const [selectedHalfEdge, setSelectedHalfEdge] = useState<number | null>(() => (initialMesh ? 0 : null));
+  const [computedSig, setComputedSig] = useState<string | null>(() => (initialMesh ? initialSig : null));
+
+  const currentSig = useMemo(() => graphSignature(state), [state]);
+  const isStale = computedSig !== null && computedSig !== currentSig;
 
   const buildMesh = useCallback(() => {
-    const graph = toTopoGraph(state);
+    const graph = toTopoGraph(state, { forceUndirected: true });
     const rotation = rotationFromAdjacency(graph);
     const built = buildHalfEdgeMesh(graph, rotation);
     setMesh(built);
     setSelectedFace(0);
     setSelectedHalfEdge(0);
-  }, [state]);
+    setComputedSig(currentSig);
+  }, [currentSig, state]);
   const handleStateChange = (next: GraphState) => {
     setState(next);
-    setMesh(null);
-    setSelectedFace(null);
-    setSelectedHalfEdge(null);
   };
 
   const highlightedEdges = useMemo(() => {
@@ -97,19 +101,22 @@ export function EmbeddingDemo() {
         </div>
       }
       outputOverlay={
-        <SvgViewport
-          nodes={state.nodes}
-          edges={edgePathsFromState(state)}
-          highlightedEdges={highlightedEdges}
-          onNodeMove={(id, dx, dy) => {
-            setState((prev) => ({
-              ...prev,
-              nodes: prev.nodes.map((node) =>
-                node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
-              ),
-            }));
-          }}
-        />
+        <div className="space-y-3">
+          <RecomputeBanner visible={isStale} onRecompute={buildMesh} />
+          <SvgViewport
+            nodes={state.nodes}
+            edges={edgePathsFromState(state)}
+            highlightedEdges={highlightedEdges}
+            onNodeMove={(id, dx, dy) => {
+              setState((prev) => ({
+                ...prev,
+                nodes: prev.nodes.map((node) =>
+                  node.id === id ? { ...node, x: node.x + dx, y: node.y + dy } : node,
+                ),
+              }));
+            }}
+          />
+        </div>
       }
       inspector={
         <JsonInspector
