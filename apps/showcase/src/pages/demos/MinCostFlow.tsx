@@ -86,6 +86,7 @@ export function MinCostFlowDemo() {
   };
 
   const graphState = useMemo(() => toGraphState(network), [network]);
+  const flowError = result && !result.feasible ? 'Infeasible flow: demands/capacities cannot be satisfied.' : null;
 
   return (
     <DemoScaffold
@@ -114,6 +115,11 @@ export function MinCostFlowDemo() {
         <div className="space-y-3">
           <RecomputeBanner visible={isStale} onRecompute={run} />
           <StatsPanel items={[{ label: 'Runtime (ms)', value: runtimeMs }]} />
+          {flowError ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {flowError}
+            </div>
+          ) : null}
           <SvgViewport
             nodes={graphState.nodes}
             edges={edgePathsFromState(graphState)}
