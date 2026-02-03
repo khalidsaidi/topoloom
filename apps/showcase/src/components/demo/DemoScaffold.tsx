@@ -99,11 +99,12 @@ export function DemoScaffold({
         <p className="max-w-3xl text-sm text-muted-foreground">{subtitle}</p>
       </header>
 
-      <div className="space-y-6">
-        <div data-testid="demo-capture" className="space-y-4">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,_1fr)_minmax(260px,_360px)] lg:items-start">
+        <div data-testid="demo-capture" className="space-y-4 lg:min-h-[60vh]">
           {outputCard}
         </div>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,_1fr)_minmax(240px,_320px)] lg:items-start">
+
+        <aside className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Input</CardTitle>
@@ -132,7 +133,7 @@ export function DemoScaffold({
               )}
             </CardContent>
           </Card>
-        </div>
+        </aside>
       </div>
 
       <Card>

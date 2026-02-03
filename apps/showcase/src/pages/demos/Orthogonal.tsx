@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { AutoComputeToggle } from '@/components/demo/AutoComputeToggle';
 import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { StatsPanel } from '@/components/demo/StatsPanel';
@@ -47,9 +48,11 @@ export function OrthogonalDemo() {
   const [error, setError] = useState<string | null>(() => initialComputed.error);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialComputed.layout || initialComputed.error ? initialSig : null));
+  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
 
   const currentSig = useMemo(() => graphSignature(state), [state]);
   const isStale = computedSig !== null && computedSig !== currentSig;
+  const shouldAutoRun = autoRun && (computedSig === null || isStale);
 
   const run = useCallback(() => {
     const start = performance.now();
@@ -60,6 +63,12 @@ export function OrthogonalDemo() {
     if (next.error) toast.error(next.error);
     setComputedSig(currentSig);
   }, [currentSig, state]);
+
+  useEffect(() => {
+    if (!shouldAutoRun) return;
+    const handle = window.setTimeout(() => run(), 200);
+    return () => window.clearTimeout(handle);
+  }, [run, shouldAutoRun]);
 
   const handleStateChange = (next: GraphState) => {
     setState(next);
@@ -100,6 +109,7 @@ export function OrthogonalDemo() {
             selectedNodeId={selectedNodeId}
             onSelectNode={setSelectedNodeId}
           />
+          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
           <Button size="sm" onClick={run}>Compute orthogonal rep</Button>
         </div>
       }

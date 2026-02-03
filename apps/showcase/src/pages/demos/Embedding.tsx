@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { DemoScaffold } from '@/components/demo/DemoScaffold';
 import { GraphEditor } from '@/components/demo/GraphEditor';
 import { JsonInspector } from '@/components/demo/JsonInspector';
+import { AutoComputeToggle } from '@/components/demo/AutoComputeToggle';
 import { RecomputeBanner } from '@/components/demo/RecomputeBanner';
 import { SvgViewport } from '@/components/demo/SvgViewport';
 import { demoExpectations } from '@/data/demo-expectations';
@@ -32,9 +33,11 @@ export function EmbeddingDemo() {
   const [selectedFace, setSelectedFace] = useState<number | null>(() => (initialMesh ? 0 : null));
   const [selectedHalfEdge, setSelectedHalfEdge] = useState<number | null>(() => (initialMesh ? 0 : null));
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialMesh ? initialSig : null));
+  const [autoRun, setAutoRun] = useState<boolean>(() => query.autorun);
 
   const currentSig = useMemo(() => graphSignature(state), [state]);
   const isStale = computedSig !== null && computedSig !== currentSig;
+  const shouldAutoRun = autoRun && (computedSig === null || isStale);
 
   const buildMesh = useCallback(() => {
     const graph = toTopoGraph(state, { forceUndirected: true });
@@ -45,6 +48,12 @@ export function EmbeddingDemo() {
     setSelectedHalfEdge(0);
     setComputedSig(currentSig);
   }, [currentSig, state]);
+
+  useEffect(() => {
+    if (!shouldAutoRun) return;
+    const handle = window.setTimeout(() => buildMesh(), 150);
+    return () => window.clearTimeout(handle);
+  }, [buildMesh, shouldAutoRun]);
   const handleStateChange = (next: GraphState) => {
     setState(next);
   };
@@ -66,6 +75,7 @@ export function EmbeddingDemo() {
       inputControls={
         <div className="space-y-4">
           <GraphEditor state={state} onChange={handleStateChange} />
+          <AutoComputeToggle value={autoRun} onChange={setAutoRun} />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={buildMesh}>Build half-edge</Button>
           </div>
