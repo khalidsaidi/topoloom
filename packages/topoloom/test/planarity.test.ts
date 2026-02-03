@@ -115,8 +115,7 @@ describe('planarity', () => {
     const x = loopBuilder.addVertex('x');
     const loopId = loopBuilder.addEdge(x, x, false);
     const loopGraph = loopBuilder.build();
-    expect(() => testPlanarity(loopGraph)).toThrow(/self-loops/i);
-    const ignored = testPlanarity(loopGraph, { allowSelfLoops: 'ignore' });
+    const ignored = testPlanarity(loopGraph);
     expect(ignored.planar).toBe(true);
     expect(ignored.ignoredSelfLoops).toEqual([loopId]);
     if (ignored.planar) {
@@ -124,6 +123,7 @@ describe('planarity', () => {
       const validation = validateMesh(mesh);
       expect(validation.ok).toBe(true);
     }
+    expect(() => testPlanarity(loopGraph, { allowSelfLoops: 'reject' })).toThrow(/self-loops/i);
   });
 
   it('rejects directed graphs', () => {
@@ -132,9 +132,9 @@ describe('planarity', () => {
     const b = builder.addVertex('b');
     builder.addEdge(a, b, true);
     const g = builder.build();
-    expect(() => testPlanarity(g)).toThrow(/undirected/i);
-    const relaxed = testPlanarity(g, { treatDirectedAsUndirected: true });
+    const relaxed = testPlanarity(g);
     expect(relaxed.planar).toBe(true);
     expect(relaxed.treatedDirectedAsUndirected).toBe(true);
+    expect(() => testPlanarity(g, { treatDirectedAsUndirected: false })).toThrow(/undirected/i);
   });
 });

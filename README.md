@@ -44,16 +44,16 @@ Live demo: https://topoloom.web.app
 ## Philosophy
 **Topology first, geometry second.** Layout pipelines should not recompute planarity or embeddings if the kernel already provides them.
 
-## Complexity & limitations
-- Planarity testing uses a native core (WASM). By default it expects undirected, loopless graphs,
-  but `testPlanarity` can **treat directed edges as undirected** and **re‑inject self‑loops** into the
-  embedding when `allowSelfLoops: 'ignore'` is set.
-- Biconnected components treat self‑loops as singleton blocks so they remain visible in BC‑trees.
+## Behavior notes
+- Planarity testing uses a native core (WASM) and by default **treats directed edges as undirected**
+  while **ignoring self‑loops** (loops are re‑injected into the embedding).
+- Biconnected components and st‑numbering treat directed edges as undirected by default; self‑loops
+  are ignored or reported as singleton blocks depending on the module.
 - SPQR decomposition is defined on biconnected graphs; `spqrDecomposeSafe` (largest block) and
-  `spqrDecomposeAll` (forest) handle non‑biconnected inputs deterministically.
-- Dual routing can fall back to a **maximal planar backbone** when requested.
-- Orthogonal layout treats directed inputs as undirected and planarizes non‑planar graphs before
-  routing. Flow infeasibility for high‑degree vertices is mitigated by relaxed port assignment.
+  `spqrDecomposeAll` (forest) provide deterministic results for non‑biconnected inputs.
+- Dual routing automatically uses a **maximal planar backbone** on nonplanar inputs.
+- Orthogonal layout planarizes non‑planar graphs before routing and assigns ports for high‑degree
+  vertices to preserve orthogonal geometry.
 
 ## Contributing
 - Use pnpm >= 9 and Node >= 20.

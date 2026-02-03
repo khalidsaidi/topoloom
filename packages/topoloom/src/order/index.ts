@@ -8,8 +8,43 @@ export type StNumbering = {
   numberOf: number[];
 };
 
-export function validateStNumbering(graph: Graph, s: VertexId, t: VertexId, numbering: StNumbering) {
-  const n = graph.vertexCount();
+export type StNumberingOptions = {
+  treatDirectedAsUndirected?: boolean;
+  allowSelfLoops?: 'reject' | 'ignore';
+};
+
+const sanitizeUndirected = (graph: Graph, options: StNumberingOptions = {}) => {
+  const treatDirected = options.treatDirectedAsUndirected ?? true;
+  const allowSelfLoops = options.allowSelfLoops ?? 'ignore';
+
+  const builder = new GraphBuilder();
+  for (const v of graph.vertices()) builder.addVertex(graph.label(v));
+  const ignoredSelfLoops: EdgeId[] = [];
+  for (const edge of graph.edges()) {
+    if (edge.u === edge.v) {
+      if (allowSelfLoops === 'reject') {
+        throw new Error('st-numbering does not support self-loops.');
+      }
+      ignoredSelfLoops.push(edge.id);
+      continue;
+    }
+    if (edge.directed && !treatDirected) {
+      throw new Error('st-numbering requires an undirected graph.');
+    }
+    builder.addEdge(edge.u, edge.v, false);
+  }
+  return { graph: builder.build(), ignoredSelfLoops };
+};
+
+export function validateStNumbering(
+  graph: Graph,
+  s: VertexId,
+  t: VertexId,
+  numbering: StNumbering,
+  options: StNumberingOptions = {},
+) {
+  const { graph: sanitized } = sanitizeUndirected(graph, options);
+  const n = sanitized.vertexCount();
   if (numbering.order.length !== n) throw new Error('st-numbering does not cover all vertices');
   if (numbering.order[0] !== s) throw new Error('st-numbering must start with s');
   if (numbering.order[numbering.order.length - 1] !== t) throw new Error('st-numbering must end with t');
@@ -19,7 +54,7 @@ export function validateStNumbering(graph: Graph, s: VertexId, t: VertexId, numb
     const num = numbering.numberOf[v];
     let hasLower = false;
     let hasHigher = false;
-    for (const adj of graph.adjacency(v)) {
+    for (const adj of sanitized.adjacency(v)) {
       const w = adj.to;
       const wNum = numbering.numberOf[w];
       if (wNum !== undefined && num !== undefined && wNum < num) hasLower = true;
@@ -31,28 +66,24 @@ export function validateStNumbering(graph: Graph, s: VertexId, t: VertexId, numb
   }
 }
 
-export function stNumbering(graph: Graph, s: VertexId, t: VertexId): StNumbering {
-  const n = graph.vertexCount();
+export function stNumbering(graph: Graph, s: VertexId, t: VertexId, options: StNumberingOptions = {}): StNumbering {
+  const { graph: sanitized } = sanitizeUndirected(graph, options);
+  const n = sanitized.vertexCount();
   if (s === t) throw new Error('st-numbering requires distinct s and t.');
   if (s < 0 || t < 0 || s >= n || t >= n) throw new Error('Invalid s or t.');
-  for (const edge of graph.edges()) {
-    if (edge.directed) throw new Error('st-numbering requires an undirected graph.');
-    if (edge.u === edge.v) throw new Error('st-numbering does not support self-loops.');
-  }
-
-  const bcc = biconnectedComponents(graph);
+  const bcc = biconnectedComponents(sanitized);
   if (bcc.blocks.length !== 1 || bcc.articulationPoints.length > 0) {
     throw new Error('st-numbering requires a biconnected graph.');
   }
 
   const adjacency: Array<Array<{ to: VertexId; edge: EdgeId }>> = Array.from({ length: n }, () => []);
-  graph.edges().forEach((edge) => {
+  sanitized.edges().forEach((edge) => {
     adjacency[edge.u]?.push({ to: edge.v, edge: edge.id });
     adjacency[edge.v]?.push({ to: edge.u, edge: edge.id });
   });
 
   let hasEdgeST = false;
-  for (const edge of graph.edges()) {
+  for (const edge of sanitized.edges()) {
     if ((edge.u === s && edge.v === t) || (edge.u === t && edge.v === s)) {
       hasEdgeST = true;
       break;
@@ -159,7 +190,7 @@ export function stNumbering(graph: Graph, s: VertexId, t: VertexId): StNumbering
   });
 
   const result = { order, numberOf };
-  validateStNumbering(graph, s, t, result);
+  validateStNumbering(sanitized, s, t, result, options);
   return result;
 }
 

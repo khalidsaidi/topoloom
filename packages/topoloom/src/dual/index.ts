@@ -205,6 +205,7 @@ export function routeEdgeOnGraph(
   v: VertexId,
   options: RouteOnGraphOptions = {},
 ): RouteOnGraphResult | null {
+  const fallback = options.planarityFallback ?? true;
   const planarity = testPlanarity(graph, options.planarityOptions);
   if (planarity.planar) {
     const mesh = buildHalfEdgeMesh(graph, planarity.embedding);
@@ -216,7 +217,7 @@ export function routeEdgeOnGraph(
     return note ? { ...route, note } : route;
   }
 
-  if (!options.planarityFallback) return null;
+  if (!fallback) return null;
 
   const { graph: base, edgeMap, dropped } = buildMaximalPlanarSubgraph(
     graph,

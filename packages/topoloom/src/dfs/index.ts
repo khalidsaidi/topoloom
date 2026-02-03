@@ -61,14 +61,28 @@ export type BiconnectedResult = {
   edgeToBlock: number[];
 };
 
-export function biconnectedComponents(graph: Graph): BiconnectedResult {
+export type BiconnectedOptions = {
+  treatDirectedAsUndirected?: boolean;
+  allowSelfLoops?: 'reject' | 'ignore';
+};
+
+export function biconnectedComponents(
+  graph: Graph,
+  options: BiconnectedOptions = {},
+): BiconnectedResult {
   const loopEdges: EdgeId[] = [];
+  const treatDirected = options.treatDirectedAsUndirected ?? true;
+  const allowSelfLoops = options.allowSelfLoops ?? 'ignore';
   for (const edge of graph.edges()) {
-    if (edge.directed) {
-      throw new Error('Biconnected components require an undirected graph.');
-    }
     if (edge.u === edge.v) {
+      if (allowSelfLoops === 'reject') {
+        throw new Error('Biconnected components do not support self-loops.');
+      }
       loopEdges.push(edge.id);
+      continue;
+    }
+    if (edge.directed && !treatDirected) {
+      throw new Error('Biconnected components require an undirected graph.');
     }
   }
   const n = graph.vertexCount();

@@ -29,8 +29,8 @@ const NONEMBEDDABLE = -1;
 export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): PlanarityResult {
   const n = graph.vertexCount();
   const edges = graph.edges();
-  const treatDirected = options.treatDirectedAsUndirected ?? false;
-  const allowSelfLoops = options.allowSelfLoops ?? 'reject';
+  const treatDirected = options.treatDirectedAsUndirected ?? true;
+  const allowSelfLoops = options.allowSelfLoops ?? 'ignore';
   const ignoredSelfLoops: EdgeId[] = [];
   const loopsByVertex: EdgeId[][] = Array.from({ length: n }, () => []);
   const included: typeof edges = [];
