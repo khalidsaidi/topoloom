@@ -34,6 +34,7 @@ export function BCTreeDemo() {
   const [bcc, setBcc] = useState<BiconnectedResult | null>(() => initial?.bcc ?? null);
   const [tree, setTree] = useState<BCTree | null>(() => initial?.tree ?? null);
   const [selectedBlock, setSelectedBlock] = useState<number | null>(() => (initial ? 0 : null));
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initial ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:bc-tree', query.autorun, {
     size: state.nodes.length + state.edges.length,
@@ -81,6 +82,8 @@ export function BCTreeDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
             allowDirected
             directedHint="Directions are ignored for biconnected decomposition."
           />
@@ -114,6 +117,8 @@ export function BCTreeDemo() {
             nodes={state.nodes}
             edges={edgePathsFromState(state)}
             highlightedEdges={highlightedEdges}
+            highlightedNodes={selectedNodeId !== null ? new Set([selectedNodeId]) : undefined}
+            onNodeClick={(id) => setSelectedNodeId((prev) => (prev === id ? null : id))}
             onNodeMove={(id, dx, dy) => {
               setState((prev) => ({
                 ...prev,

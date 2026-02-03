@@ -33,6 +33,7 @@ export function EmbeddingDemo() {
   const [mesh, setMesh] = useState<HalfEdgeMesh | null>(() => initialMesh);
   const [selectedFace, setSelectedFace] = useState<number | null>(() => (initialMesh ? 0 : null));
   const [selectedHalfEdge, setSelectedHalfEdge] = useState<number | null>(() => (initialMesh ? 0 : null));
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialMesh ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:embedding', query.autorun, {
     size: state.nodes.length + state.edges.length,
@@ -81,6 +82,8 @@ export function EmbeddingDemo() {
           <GraphEditor
             state={state}
             onChange={handleStateChange}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
             allowDirected
             directedHint="Directions are ignored for embedding construction."
           />
@@ -131,6 +134,8 @@ export function EmbeddingDemo() {
             nodes={state.nodes}
             edges={edgePathsFromState(state)}
             highlightedEdges={highlightedEdges}
+            highlightedNodes={selectedNodeId !== null ? new Set([selectedNodeId]) : undefined}
+            onNodeClick={(id) => setSelectedNodeId((prev) => (prev === id ? null : id))}
             onNodeMove={(id, dx, dy) => {
               setState((prev) => ({
                 ...prev,
