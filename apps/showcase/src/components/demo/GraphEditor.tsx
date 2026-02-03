@@ -14,9 +14,18 @@ export type GraphEditorProps = {
   onChange: (state: GraphState) => void;
   onSelectNode?: (id: number | null) => void;
   selectedNodeId?: number | null;
+  allowDirected?: boolean;
+  directedHint?: string;
 };
 
-export function GraphEditor({ state, onChange, onSelectNode, selectedNodeId }: GraphEditorProps) {
+export function GraphEditor({
+  state,
+  onChange,
+  onSelectNode,
+  selectedNodeId,
+  allowDirected = true,
+  directedHint,
+}: GraphEditorProps) {
   const [source, setSource] = useState<number>(state.nodes[0]?.id ?? 0);
   const [target, setTarget] = useState<number>(state.nodes[1]?.id ?? 0);
   const [importText, setImportText] = useState('');
@@ -79,7 +88,10 @@ export function GraphEditor({ state, onChange, onSelectNode, selectedNodeId }: G
   };
 
   const addEdge = () => {
-    if (source === target || state.nodes.length < 2) return;
+    if (source === target || state.nodes.length < 2) {
+      toast.error('Select two different nodes to add an edge.');
+      return;
+    }
     const id = state.nextEdgeId;
     setDirty(true);
     toast.success(`Edge ${source} → ${target} added`);
@@ -101,6 +113,7 @@ export function GraphEditor({ state, onChange, onSelectNode, selectedNodeId }: G
   };
 
   const toggleDirected = () => {
+    if (!allowDirected) return;
     setDirty(true);
     onChange({
       ...state,
@@ -158,10 +171,19 @@ export function GraphEditor({ state, onChange, onSelectNode, selectedNodeId }: G
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={addNode}>Add node</Button>
         <Button size="sm" variant="outline" onClick={addEdge}>Add edge</Button>
-        <Button size="sm" variant="ghost" onClick={toggleDirected}>
-          {state.directed ? 'Directed' : 'Undirected'}
-        </Button>
+        {allowDirected ? (
+          <Button size="sm" variant="ghost" onClick={toggleDirected}>
+            {state.directed ? 'Directed' : 'Undirected'}
+          </Button>
+        ) : (
+          <div className="rounded-md border bg-muted/30 px-2 py-1 text-[11px] text-muted-foreground">
+            Undirected only
+          </div>
+        )}
       </div>
+      {!allowDirected && directedHint ? (
+        <div className="text-[10px] text-muted-foreground">{directedHint}</div>
+      ) : null}
 
       <div className="grid gap-3 text-xs">
         <div>

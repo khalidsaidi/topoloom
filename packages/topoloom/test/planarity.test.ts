@@ -102,7 +102,7 @@ describe('planarity', () => {
     expect(result.planar).toBe(false);
   });
 
-  it('accepts multi-edges but rejects self-loops', () => {
+  it('accepts multi-edges and can ignore self-loops', () => {
     const builder = new GraphBuilder();
     const a = builder.addVertex('a');
     const b = builder.addVertex('b');
@@ -119,6 +119,11 @@ describe('planarity', () => {
     const ignored = testPlanarity(loopGraph, { allowSelfLoops: 'ignore' });
     expect(ignored.planar).toBe(true);
     expect(ignored.ignoredSelfLoops).toEqual([loopId]);
+    if (ignored.planar) {
+      const mesh = buildHalfEdgeMesh(loopGraph, ignored.embedding);
+      const validation = validateMesh(mesh);
+      expect(validation.ok).toBe(true);
+    }
   });
 
   it('rejects directed graphs', () => {

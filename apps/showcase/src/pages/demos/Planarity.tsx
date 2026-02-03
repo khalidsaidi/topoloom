@@ -28,7 +28,7 @@ export function PlanarityDemo() {
 
   const computePlanarity = (graphState: GraphState) => {
     const graph = toTopoGraph(graphState, { forceUndirected: true });
-    const res = testPlanarity(graph);
+    const res = testPlanarity(graph, { allowSelfLoops: 'ignore' });
     if (res.planar) {
       const mesh = buildHalfEdgeMesh(graph, res.embedding);
       return { result: { ...res, faces: mesh.faces.length }, witness: new Set<number>() };
@@ -44,6 +44,7 @@ export function PlanarityDemo() {
   const [witnessEdges, setWitnessEdges] = useState<Set<number>>(
     () => initial?.witness ?? new Set(),
   );
+  const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() =>
     initial ? initialSig : null,
   );
@@ -57,9 +58,11 @@ export function PlanarityDemo() {
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
 
   const runPlanarity = useCallback(() => {
+    const start = performance.now();
     const next = computePlanarity(state);
     setResult(next.result);
     setWitnessEdges(next.witness);
+    setRuntimeMs(Math.round(performance.now() - start));
     setComputedSig(currentSig);
   }, [currentSig, state]);
 
@@ -90,7 +93,12 @@ export function PlanarityDemo() {
       }
       inputControls={
         <div className="space-y-4">
-          <GraphEditor state={state} onChange={handleStateChange} />
+          <GraphEditor
+            state={state}
+            onChange={handleStateChange}
+            allowDirected={false}
+            directedHint="This demo uses undirected planar inputs."
+          />
           <AutoComputeToggle
             value={autoState.value}
             onChange={autoState.setValue}
@@ -120,6 +128,7 @@ export function PlanarityDemo() {
             bends={0}
             area={Math.round(result && result.planar ? result.faces ?? 0 : 0)}
             crossings={witnessEdges.size}
+            runtimeMs={runtimeMs}
           />
         </div>
       }

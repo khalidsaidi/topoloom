@@ -72,6 +72,20 @@ describe('dfs toolkit', () => {
     expect(cutNodes.length).toBe(1);
   });
 
+  it('treats self-loops as their own blocks', () => {
+    const builder = new GraphBuilder();
+    const v0 = builder.addVertex('0');
+    const v1 = builder.addVertex('1');
+    const loop = builder.addEdge(v0, v0, false);
+    builder.addEdge(v0, v1, false);
+    const g = builder.build();
+
+    const bcc = biconnectedComponents(g);
+    expect(bcc.edgeToBlock[loop]).toBeGreaterThanOrEqual(0);
+    const loopBlock = bcc.blocks.find((block) => block.length === 1 && block[0] === loop);
+    expect(loopBlock).toBeDefined();
+  });
+
   it('partitions edges into blocks for random graphs', () => {
     fc.assert(
       fc.property(

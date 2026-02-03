@@ -62,12 +62,13 @@ export type BiconnectedResult = {
 };
 
 export function biconnectedComponents(graph: Graph): BiconnectedResult {
+  const loopEdges: EdgeId[] = [];
   for (const edge of graph.edges()) {
     if (edge.directed) {
       throw new Error('Biconnected components require an undirected graph.');
     }
     if (edge.u === edge.v) {
-      throw new Error('Biconnected components do not support self-loops.');
+      loopEdges.push(edge.id);
     }
   }
   const n = graph.vertexCount();
@@ -103,6 +104,11 @@ export function biconnectedComponents(graph: Graph): BiconnectedResult {
     for (const adj of graph.adjacency(u)) {
       const e = adj.edge;
       if (visitedEdge[e]) continue;
+      const record = graph.edge(e);
+      if (record.u === record.v) {
+        visitedEdge[e] = true;
+        continue;
+      }
       visitedEdge[e] = true;
       const v = adj.to;
 
@@ -146,6 +152,11 @@ export function biconnectedComponents(graph: Graph): BiconnectedResult {
   blocks.forEach((block, idx) => {
     block.sort((a, b) => a - b);
     for (const e of block) edgeToBlock[e] = idx;
+  });
+  loopEdges.forEach((edgeId) => {
+    const idx = blocks.length;
+    blocks.push([edgeId]);
+    edgeToBlock[edgeId] = idx;
   });
 
   return {

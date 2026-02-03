@@ -57,6 +57,7 @@ export function OrthogonalDemo() {
   const currentSig = useMemo(() => graphSignature(state), [state]);
   const isStale = computedSig !== null && computedSig !== currentSig;
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
+  const showComputed = Boolean(layout) && !isStale;
 
   const run = useCallback(() => {
     const start = performance.now();
@@ -79,15 +80,15 @@ export function OrthogonalDemo() {
   };
 
   const nodes = useMemo(() => {
-    if (!layout) return state.nodes;
+    if (!showComputed || !layout) return state.nodes;
     return state.nodes.map((node) => {
       const p = layout.positions.get(node.id);
       return p ? { ...node, x: p.x, y: p.y } : node;
     });
-  }, [layout, state.nodes]);
+  }, [layout, showComputed, state.nodes]);
 
   const previewEdges = useMemo<EdgePath[]>(() => edgePathsFromState(state), [state]);
-  const edges = layout?.edges ?? previewEdges;
+  const edges = showComputed && layout ? layout.edges : previewEdges;
   const highlightedNodes = useMemo(
     () => (selectedNodeId === null ? undefined : new Set([selectedNodeId])),
     [selectedNodeId],
@@ -112,6 +113,8 @@ export function OrthogonalDemo() {
             onChange={handleStateChange}
             selectedNodeId={selectedNodeId}
             onSelectNode={setSelectedNodeId}
+            allowDirected={false}
+            directedHint="Orthogonal layout currently uses undirected planar inputs."
           />
           <AutoComputeToggle
             value={autoState.value}

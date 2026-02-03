@@ -27,6 +27,7 @@ export function PlanarizationDemo() {
   const initialResult = query.autorun ? planarizationLayout(toTopoGraph(initialState, { forceUndirected: true })) : null;
   const [state, setState] = useState<GraphState>(() => initialState);
   const [result, setResult] = useState<PlanarizationResult | null>(() => initialResult);
+  const [runtimeMs, setRuntimeMs] = useState<number | undefined>(undefined);
   const [computedSig, setComputedSig] = useState<string | null>(() => (initialResult ? initialSig : null));
   const autoState = useAutoCompute('topoloom:auto:planarization', query.autorun, {
     size: state.nodes.length + state.edges.length,
@@ -36,11 +37,14 @@ export function PlanarizationDemo() {
   const currentSig = useMemo(() => graphSignature(state), [state]);
   const isStale = computedSig !== null && computedSig !== currentSig;
   const shouldAutoRun = autoState.value && !autoState.disabled && (computedSig === null || isStale);
+  const showComputed = Boolean(result) && !isStale;
 
   const run = useCallback(() => {
+    const start = performance.now();
     const graph = toTopoGraph(state, { forceUndirected: true });
     const layout = planarizationLayout(graph);
     setResult(layout);
+    setRuntimeMs(Math.round(performance.now() - start));
     setComputedSig(currentSig);
   }, [currentSig, state]);
 
@@ -62,12 +66,12 @@ export function PlanarizationDemo() {
   }, [result, state]);
 
   const nodes = useMemo(() => {
-    if (!result) return state.nodes;
+    if (!showComputed || !result) return state.nodes;
     return state.nodes.map((node) => {
       const pos = result.layout.positions.get(node.id);
       return pos ? { ...node, x: pos.x, y: pos.y } : node;
     });
-  }, [result, state.nodes]);
+  }, [result, showComputed, state.nodes]);
 
   return (
     <DemoScaffold
@@ -79,7 +83,12 @@ export function PlanarizationDemo() {
       status={<Badge variant="secondary">{result ? 'Done' : 'Pending'}</Badge>}
       inputControls={
         <div className="space-y-4">
-          <GraphEditor state={state} onChange={handleStateChange} />
+          <GraphEditor
+            state={state}
+            onChange={handleStateChange}
+            allowDirected={false}
+            directedHint="This demo uses undirected planar inputs."
+          />
           <AutoComputeToggle
             value={autoState.value}
             onChange={autoState.setValue}
@@ -94,10 +103,10 @@ export function PlanarizationDemo() {
           <RecomputeBanner visible={isStale} onRecompute={run} />
           <SvgViewport
             nodes={nodes}
-            edges={result ? [...baseEdges, ...remainingEdges] : previewEdges}
-            highlightedEdges={new Set(result?.remainingEdges ?? [])}
+            edges={showComputed && result ? [...baseEdges, ...remainingEdges] : previewEdges}
+            highlightedEdges={showComputed ? new Set(result?.remainingEdges ?? []) : undefined}
           />
-          <StatsPanel crossings={result?.remainingEdges?.length ?? 0} />
+          <StatsPanel crossings={result?.remainingEdges?.length ?? 0} runtimeMs={runtimeMs} />
         </div>
       }
       inspector={<JsonInspector data={result ?? { status: 'pending' }} />}
