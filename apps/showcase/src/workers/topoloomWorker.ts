@@ -1,7 +1,7 @@
 import { GraphBuilder } from '@khalidsaidi/topoloom/graph';
 import { testPlanarity } from '@khalidsaidi/topoloom/planarity';
 import { buildHalfEdgeMesh, type RotationSystem } from '@khalidsaidi/topoloom/embedding';
-import { orthogonalLayout, planarizationLayout } from '@khalidsaidi/topoloom/layout';
+import { orthogonalLayout, planarStraightLine, planarizationLayout } from '@khalidsaidi/topoloom/layout';
 import { biconnectedComponents } from '@khalidsaidi/topoloom/dfs';
 import { spqrDecomposeSafe } from '@khalidsaidi/topoloom/decomp';
 
@@ -297,7 +297,9 @@ function chooseBoundaryFace(
   }
 
   const preferred = candidates.filter((candidate) => candidate.len >= low && candidate.len <= high);
-  return closestToTarget(preferred.length > 0 ? preferred : candidates, true);
+  if (preferred.length > 0) return closestToTarget(preferred, true);
+  const antiRing = candidates.filter((candidate) => candidate.len <= Math.max(high, Math.round(target * 1.35)));
+  return closestToTarget(antiRing.length > 0 ? antiRing : candidates, true);
 }
 
 type GeographicCoords = {
@@ -493,6 +495,53 @@ function buildLayoutFromPositions(
   };
 }
 
+function buildStraightLayoutFromSample(
+  sampledEdges: Array<[number, number]>,
+  points: Point[],
+) {
+  const positions = new Map<number, Point>();
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (let id = 0; id < points.length; id += 1) {
+    const point = {
+      x: clampCoordinate(points[id]?.x ?? 0),
+      y: clampCoordinate(points[id]?.y ?? 0),
+    };
+    positions.set(id, point);
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  }
+
+  const edges = sampledEdges.map((edge, edgeId) => {
+    const a = positions.get(edge[0]) ?? { x: 0, y: 0 };
+    const b = positions.get(edge[1]) ?? { x: 0, y: 0 };
+    return {
+      edge: edgeId,
+      points: [a, b],
+    };
+  });
+
+  if (!Number.isFinite(minX)) minX = 0;
+  if (!Number.isFinite(minY)) minY = 0;
+  if (!Number.isFinite(maxX)) maxX = 0;
+  if (!Number.isFinite(maxY)) maxY = 0;
+
+  return {
+    positions,
+    edges,
+    stats: {
+      bends: 0,
+      area: Math.max(0, maxX - minX) * Math.max(0, maxY - minY),
+      crossings: countDrawingCrossings(points, sampledEdges),
+    },
+  };
+}
+
 function toPositionPartial(positions: Point[]) {
   return positions.map((point, id) => [id, clampCoordinate(point.x), clampCoordinate(point.y)] as [number, number, number]);
 }
@@ -517,9 +566,11 @@ async function runRelaxationSolver(args: {
   nodeCount: number;
   adjacency: number[][];
   edges: Array<[number, number]>;
-  boundary: number[];
+  boundary?: number[];
   boundaryPlacement?: Map<number, Point> | null;
   startPositions?: Point[];
+  targetPositions?: Point[];
+  targetWeight?: number;
   iterMax: number;
   emitEvery: number;
   metricEvery: number;
@@ -533,9 +584,11 @@ async function runRelaxationSolver(args: {
     nodeCount,
     adjacency,
     edges,
-    boundary,
+    boundary: boundaryArg,
     boundaryPlacement,
     startPositions,
+    targetPositions,
+    targetWeight,
     iterMax,
     emitEvery,
     metricEvery,
@@ -547,15 +600,23 @@ async function runRelaxationSolver(args: {
         deterministicHairballPoint(datasetId, sampleId, seed, id, nodeCount),
       );
 
+  const boundary = boundaryArg ?? [];
   const boundarySet = new Set(boundary);
-  const placement = boundaryPlacement ?? buildCircleBoundaryPlacement(boundary, nodeCount);
-  for (const [vertex, point] of placement.entries()) {
-    positions[vertex] = { ...point };
+  const placement = boundary.length > 0
+    ? (boundaryPlacement ?? buildCircleBoundaryPlacement(boundary, nodeCount))
+    : null;
+  if (placement) {
+    for (const [vertex, point] of placement.entries()) {
+      positions[vertex] = { ...point };
+    }
   }
 
-  const interior = Array.from({ length: nodeCount }, (_, id) => id).filter((id) => !boundarySet.has(id));
+  const interior = boundary.length > 0
+    ? Array.from({ length: nodeCount }, (_, id) => id).filter((id) => !boundarySet.has(id))
+    : Array.from({ length: nodeCount }, (_, id) => id);
   const emitCount = Math.max(1, Math.ceil(iterMax / emitEvery));
   const pacing = stream ? Math.max(0, Math.floor(MIN_SOLVER_STAGE_MS / emitCount) - 2) : 0;
+  const targetMix = Math.max(0, Math.min(0.86, targetWeight ?? 0));
 
   if (stream) {
     postPartial(requestId, {
@@ -581,8 +642,29 @@ async function runRelaxationSolver(args: {
       const avgX = sumX / neighbors.length;
       const avgY = sumY / neighbors.length;
       const old = positions[vertex]!;
-      const nextX = old.x * 0.28 + avgX * 0.72;
-      const nextY = old.y * 0.28 + avgY * 0.72;
+      const target = targetPositions?.[vertex];
+      const nextX = (() => {
+        if (!target) return old.x * 0.28 + avgX * 0.72;
+        const currentWeight = 0.18;
+        const neighborWeight = Math.max(0.08, 1 - targetMix - currentWeight);
+        const total = currentWeight + neighborWeight + targetMix;
+        return (
+          old.x * (currentWeight / total) +
+          avgX * (neighborWeight / total) +
+          target.x * (targetMix / total)
+        );
+      })();
+      const nextY = (() => {
+        if (!target) return old.y * 0.28 + avgY * 0.72;
+        const currentWeight = 0.18;
+        const neighborWeight = Math.max(0.08, 1 - targetMix - currentWeight);
+        const total = currentWeight + neighborWeight + targetMix;
+        return (
+          old.y * (currentWeight / total) +
+          avgY * (neighborWeight / total) +
+          target.y * (targetMix / total)
+        );
+      })();
       residual += Math.hypot(nextX - old.x, nextY - old.y);
       positions[vertex] = { x: nextX, y: nextY };
     }
@@ -608,6 +690,28 @@ async function runRelaxationSolver(args: {
     x: clampCoordinate(point.x),
     y: clampCoordinate(point.y),
   }));
+}
+
+function buildNodeTargetPositions(
+  layoutPositions: Map<number, Point>,
+  args: {
+    nodeCount: number;
+    datasetId: string;
+    sampleId: string;
+    seed: number;
+  },
+) {
+  const { nodeCount, datasetId, sampleId, seed } = args;
+  return Array.from({ length: nodeCount }, (_, id) => {
+    const target = layoutPositions.get(id);
+    if (target) {
+      return {
+        x: clampCoordinate(target.x),
+        y: clampCoordinate(target.y),
+      };
+    }
+    return deterministicHairballPoint(datasetId, sampleId, seed, id, nodeCount);
+  });
 }
 
 function checkCancelled(requestId: string) {
@@ -906,14 +1010,21 @@ export async function computeWorkerResult(
       if (!meshBundle.mesh) {
         throw new Error('Orthogonal layout requires planar embedding.');
       }
+      let mode: DatasetMode = resolvedMode;
+      let finalLayout;
+      try {
+        finalLayout = orthogonalLayout(meshBundle.mesh);
+      } catch {
+        mode = 'planar-straight';
+        finalLayout = planarStraightLine(meshBundle.mesh);
+      }
       if (liveSolve) {
-        const faceStrategy = boundaryStrategy === 'geo-shaped' ? 'auto' : boundaryStrategy;
-        const faceId = chooseBoundaryFace(meshBundle.mesh, faceStrategy);
-        const boundary = getFaceBoundary(meshBundle.mesh, faceId);
-        const useGeoBoundary = boundaryStrategy === 'geo-shaped' || (boundaryStrategy === 'auto' && sampledGeographic);
-        const geoBoundaryPlacement = useGeoBoundary && sampledGeographic
-          ? buildGeoBoundaryPlacement(boundary, sampledGeographic)
-          : null;
+        const targetPositions = buildNodeTargetPositions(finalLayout.positions, {
+          nodeCount: sampled.nodes.length,
+          datasetId: payload.datasetId,
+          sampleId: payload.sampleId,
+          seed: payload.settings.seed,
+        });
         await runRelaxationSolver({
           requestId,
           datasetId: payload.datasetId,
@@ -922,51 +1033,124 @@ export async function computeWorkerResult(
           nodeCount: sampled.nodes.length,
           adjacency,
           edges: sampled.edges,
-          boundary,
-          boundaryPlacement: geoBoundaryPlacement,
-          iterMax: 110,
+          boundary: [],
+          startPositions: Array.from({ length: sampled.nodes.length }, (_, id) =>
+            deterministicHairballPoint(payload.datasetId, payload.sampleId, payload.settings.seed, id, sampled.nodes.length),
+          ),
+          targetPositions,
+          targetWeight: 0.56,
+          iterMax: 120,
           emitEvery: 2,
-          metricEvery: 10,
+          metricEvery: 8,
           stream: true,
         });
       }
-      const layout = orthogonalLayout(meshBundle.mesh);
       return {
-        mode: resolvedMode,
-        layout,
+        mode,
+        layout: finalLayout,
       };
     }
 
-    if (liveSolve) {
-      const fallbackBoundaryLength = Math.max(6, Math.min(sampled.nodes.length, Math.floor(Math.sqrt(sampled.nodes.length) * 3)));
-      const boundary = Array.from({ length: fallbackBoundaryLength }, (_, i) => i);
-      await runRelaxationSolver({
-        requestId,
-        datasetId: payload.datasetId,
-        sampleId: payload.sampleId,
-        seed: payload.settings.seed,
-        nodeCount: sampled.nodes.length,
-        adjacency,
-        edges: sampled.edges,
-        boundary,
-        iterMax: 84,
-        emitEvery: 2,
-        metricEvery: 10,
-        stream: true,
-      });
-    }
-
-    if (resolvedMode === 'planarization-straight') {
-      const planarized = planarizationLayout(graphBundle.graph, { mode: 'straight' });
+    if (resolvedMode === 'planarization-straight' || resolvedMode === 'planarization-orthogonal') {
+      let mode: DatasetMode = resolvedMode;
+      let planarized: ReturnType<typeof planarizationLayout> | null = null;
+      if (resolvedMode === 'planarization-orthogonal') {
+        try {
+          planarized = planarizationLayout(graphBundle.graph, { mode: 'orthogonal' });
+        } catch {
+          mode = 'planarization-straight';
+          try {
+            planarized = planarizationLayout(graphBundle.graph, { mode: 'straight' });
+          } catch {
+            const fallback = await runRelaxationSolver({
+              requestId,
+              datasetId: payload.datasetId,
+              sampleId: payload.sampleId,
+              seed: payload.settings.seed,
+              nodeCount: sampled.nodes.length,
+              adjacency,
+              edges: sampled.edges,
+              boundary: [],
+              startPositions: Array.from({ length: sampled.nodes.length }, (_, id) =>
+                deterministicHairballPoint(payload.datasetId, payload.sampleId, payload.settings.seed, id, sampled.nodes.length),
+              ),
+              iterMax: liveSolve ? 180 : 240,
+              emitEvery: 2,
+              metricEvery: 8,
+              stream: liveSolve,
+            });
+            return {
+              mode,
+              layout: buildStraightLayoutFromSample(sampled.edges, fallback),
+            };
+          }
+        }
+      } else {
+        try {
+          planarized = planarizationLayout(graphBundle.graph, { mode: 'straight' });
+        } catch {
+          const fallback = await runRelaxationSolver({
+            requestId,
+            datasetId: payload.datasetId,
+            sampleId: payload.sampleId,
+            seed: payload.settings.seed,
+            nodeCount: sampled.nodes.length,
+            adjacency,
+            edges: sampled.edges,
+            boundary: [],
+            startPositions: Array.from({ length: sampled.nodes.length }, (_, id) =>
+              deterministicHairballPoint(payload.datasetId, payload.sampleId, payload.settings.seed, id, sampled.nodes.length),
+            ),
+            iterMax: liveSolve ? 180 : 240,
+            emitEvery: 2,
+            metricEvery: 8,
+            stream: liveSolve,
+          });
+          return {
+            mode,
+            layout: buildStraightLayoutFromSample(sampled.edges, fallback),
+          };
+        }
+      }
+      if (!planarized) {
+        throw new Error('Planarization layout failed unexpectedly.');
+      }
+      if (liveSolve) {
+        const targetPositions = buildNodeTargetPositions(planarized.layout.positions, {
+          nodeCount: sampled.nodes.length,
+          datasetId: payload.datasetId,
+          sampleId: payload.sampleId,
+          seed: payload.settings.seed,
+        });
+        await runRelaxationSolver({
+          requestId,
+          datasetId: payload.datasetId,
+          sampleId: payload.sampleId,
+          seed: payload.settings.seed,
+          nodeCount: sampled.nodes.length,
+          adjacency,
+          edges: sampled.edges,
+          boundary: [],
+          startPositions: Array.from({ length: sampled.nodes.length }, (_, id) =>
+            deterministicHairballPoint(payload.datasetId, payload.sampleId, payload.settings.seed, id, sampled.nodes.length),
+          ),
+          targetPositions,
+          targetWeight: 0.58,
+          iterMax: 130,
+          emitEvery: 2,
+          metricEvery: 8,
+          stream: true,
+        });
+      }
       return {
-        mode: resolvedMode,
+        mode,
         layout: planarized.layout,
       };
     }
 
-    const planarized = planarizationLayout(graphBundle.graph, { mode: 'orthogonal' });
+    const planarized = planarizationLayout(graphBundle.graph, { mode: 'straight' });
     return {
-      mode: resolvedMode,
+      mode: 'planarization-straight',
       layout: planarized.layout,
     };
   });

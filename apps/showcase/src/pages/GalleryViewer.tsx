@@ -146,6 +146,38 @@ function computeBBox(points: Array<{ x: number; y: number }>) {
   return { minX, minY, maxX, maxY };
 }
 
+function computeViewportBBox(
+  points: Array<{ x: number; y: number }>,
+  fallback: { minX: number; minY: number; maxX: number; maxY: number },
+) {
+  if (points.length < 8) return computeBBox(points.length > 0 ? points : [
+    { x: fallback.minX, y: fallback.minY },
+    { x: fallback.maxX, y: fallback.maxY },
+  ]);
+
+  const xs = points.map((p) => p.x).sort((a, b) => a - b);
+  const ys = points.map((p) => p.y).sort((a, b) => a - b);
+  const q = (values: number[], t: number) => {
+    const idx = Math.max(0, Math.min(values.length - 1, Math.floor((values.length - 1) * t)));
+    return values[idx] ?? 0;
+  };
+
+  const minX = q(xs, 0.02);
+  const maxX = q(xs, 0.98);
+  const minY = q(ys, 0.02);
+  const maxY = q(ys, 0.98);
+
+  if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
+    return fallback;
+  }
+
+  if (maxX - minX < 1e-6 || maxY - minY < 1e-6) {
+    return fallback;
+  }
+
+  return { minX, minY, maxX, maxY };
+}
+
 function buildDegrees(nodeCount: number, edges: Array<[number, number]>) {
   const degrees = new Array(nodeCount).fill(0);
   for (const [u, v] of edges) {
@@ -307,10 +339,15 @@ function buildSceneAndGraph(args: {
     bbox: layout.bbox,
   };
 
+  const viewportBbox = computeViewportBBox(
+    graph.nodes.map((node) => ({ x: node.x, y: node.y })),
+    layout.bbox,
+  );
+
   return {
     scene,
     graph,
-    bbox: layout.bbox,
+    bbox: viewportBbox,
   };
 }
 
@@ -1187,7 +1224,7 @@ export function GalleryViewer() {
     try {
       const primary = await computeForMode(clampedControls.mode, true);
 
-      const minimumPreviewMs = reducedMotion ? 180 : 320;
+      const minimumPreviewMs = reducedMotion ? 260 : 760;
       const elapsed = performance.now() - startedAt;
       if (elapsed < minimumPreviewMs) {
         await new Promise((resolve) => {

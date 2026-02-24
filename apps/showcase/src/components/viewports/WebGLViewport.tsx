@@ -128,7 +128,10 @@ export const WebGLViewport = forwardRef<WebGLViewportHandle, WebGLViewportProps>
   };
 
   const fitCurrent = () => {
-    setCamera(fitCameraToBbox(bbox, size.width, size.height));
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect?.width ?? size.width));
+    const height = Math.max(1, Math.floor(rect?.height ?? size.height));
+    setCamera(fitCameraToBbox(bbox, width, height));
   };
 
   useEffect(() => {
