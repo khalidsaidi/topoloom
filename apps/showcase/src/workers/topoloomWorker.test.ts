@@ -28,7 +28,6 @@ vi.mock(
       }
     },
   }),
-  { virtual: true },
 );
 
 vi.mock(
@@ -42,7 +41,6 @@ vi.mock(
       },
     }),
   }),
-  { virtual: true },
 );
 
 vi.mock(
@@ -52,7 +50,6 @@ vi.mock(
       faces: [],
     }),
   }),
-  { virtual: true },
 );
 
 vi.mock(
@@ -86,7 +83,6 @@ vi.mock(
       },
     }),
   }),
-  { virtual: true },
 );
 
 vi.mock(
@@ -98,7 +94,6 @@ vi.mock(
       bridges: new Set<number>([0]),
     }),
   }),
-  { virtual: true },
 );
 
 vi.mock(
@@ -110,7 +105,6 @@ vi.mock(
       },
     }),
   }),
-  { virtual: true },
 );
 
 describe('topoloomWorker computeWorkerResult', () => {
