@@ -354,9 +354,8 @@ export async function computeWorkerResult(
       (visitedNodeIds) => {
         checkCancelled(requestId);
         postPartial(requestId, {
-          kind: 'sampling',
-          visitedNodeIds,
-          visitedCount: visitedNodeIds.length,
+          kind: 'sample',
+          visited: visitedNodeIds,
         });
       },
     );
@@ -391,10 +390,8 @@ export async function computeWorkerResult(
 
     postPartial(requestId, {
       kind: 'witness',
-      witness: {
-        kind: mapWitnessKind(planarityResult.witness.type),
-        edgePairs: witnessEdges,
-      },
+      witnessKind: mapWitnessKind(planarityResult.witness.type),
+      edges: witnessEdges,
     });
   }
 
@@ -415,7 +412,7 @@ export async function computeWorkerResult(
 
     postPartial(requestId, {
       kind: 'faces',
-      faces,
+      faceSizes: faces.sizes,
     });
 
     return {
@@ -462,6 +459,13 @@ export async function computeWorkerResult(
       mode: resolvedMode,
       layout: planarized.layout,
     };
+  });
+
+  postPartial(requestId, {
+    kind: 'layoutTarget',
+    positions: [...layoutBundle.layout.positions.entries()]
+      .map(([id, point]) => [id, clampCoordinate(point.x), clampCoordinate(point.y)] as [number, number, number])
+      .sort((a, b) => a[0] - b[0]),
   });
 
   const reportBundle = await trackStage('report', 'collecting report-card metrics', () => {

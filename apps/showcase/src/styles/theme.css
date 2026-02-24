@@ -1,0 +1,31 @@
+:root {
+  --bg: 2 6 23;
+  --panel: 15 23 42;
+  --panel2: 30 41 59;
+  --border: 148 163 184;
+  --text: 226 232 240;
+  --muted: 148 163 184;
+  --accent: 34 197 94;
+  --danger: 239 68 68;
+}
+
+.theme-cinema {
+  color: rgb(var(--text));
+  background: radial-gradient(circle at 12% 18%, rgba(56, 189, 248, 0.18), transparent 36%),
+    radial-gradient(circle at 88% 0%, rgba(16, 185, 129, 0.2), transparent 40%),
+    rgb(var(--bg));
+}
+
+.glass-panel {
+  background: rgba(var(--panel), 0.7);
+  border: 1px solid rgba(var(--border), 0.3);
+  backdrop-filter: blur(14px);
+  border-radius: 14px;
+}
+
+.glass-panel-strong {
+  background: rgba(var(--panel), 0.84);
+  border: 1px solid rgba(var(--border), 0.36);
+  backdrop-filter: blur(14px);
+  border-radius: 14px;
+}

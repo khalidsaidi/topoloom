@@ -13,6 +13,7 @@ uniform vec2 u_viewport;
 
 out float v_flags;
 out float v_visible;
+out float v_t;
 
 vec2 toNdc(vec2 screen, vec2 viewport) {
   return vec2(
@@ -32,6 +33,7 @@ void main() {
   gl_Position = vec4(toNdc(screen, u_viewport), 0.0, 1.0);
   v_flags = a_flags;
   v_visible = a_visible;
+  v_t = t;
 }
 `;
 
@@ -40,6 +42,7 @@ precision highp float;
 
 in float v_flags;
 in float v_visible;
+in float v_t;
 
 uniform float u_time;
 uniform float u_alpha;
@@ -60,27 +63,28 @@ void main() {
   float isBridge = hasBit(v_flags, 4.0);
   float isFaceBoundary = hasBit(v_flags, 8.0);
 
-  vec3 color = vec3(0.12, 0.17, 0.25);
-  float alpha = 0.75 * u_alpha;
+  vec3 color = vec3(0.72, 0.8, 0.91);
+  float alpha = 0.94 * u_alpha;
 
   if (isBridge > 0.5) {
-    color = vec3(0.85, 0.45, 0.05);
-    alpha = 0.95 * u_alpha;
+    color = vec3(0.98, 0.75, 0.18);
+    float dash = step(0.45, fract(v_t * 14.0 + u_time * 0.0018));
+    alpha = (0.55 + dash * 0.45) * u_alpha;
   }
 
   if (isWitness > 0.5) {
     float pulse = 0.65 + 0.35 * sin(u_time * 0.012);
-    color = vec3(0.95, 0.15, 0.15) * pulse;
+    color = vec3(1.0, 0.28, 0.28) * pulse;
     alpha = 1.0 * u_alpha;
   }
 
   if (isFaceBoundary > 0.5) {
-    color = vec3(0.22, 0.88, 0.88);
-    alpha = 0.55 * u_alpha;
+    color = vec3(0.24, 0.92, 0.92);
+    alpha = 0.68 * u_alpha;
   }
 
   if (u_routePass) {
-    alpha *= 0.9;
+    alpha *= 0.95;
   }
 
   outColor = vec4(color, clamp(alpha, 0.0, 1.0));

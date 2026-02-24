@@ -3,25 +3,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AttributionModal } from '@/components/gallery/AttributionModal';
 import { ReportCard } from '@/components/gallery/ReportCard';
 import { JsonInspector } from '@/components/demo/JsonInspector';
 import { CompareLayout } from '@/components/CompareLayout';
 import { CinemaControlsSheet, type CinemaControlState } from '@/components/CinemaControlsSheet';
-import { HUD } from '@/components/HUD';
+import { HUD, type HudStatus } from '@/components/HUD';
 import { PipelineStrip, type PipelineStepId } from '@/components/PipelineStrip';
-import { SvgViewport } from '@/components/viewports/SvgViewport';
 import { WebGLViewport, type WebGLViewportHandle } from '@/components/viewports/WebGLViewport';
+import { SvgViewport } from '@/components/viewports/SvgViewport';
+import type {
+  CameraTransform,
+  RendererFrameState,
+  RendererSceneInput,
+  RendererSegmentInput,
+} from '@/gl/GraphRenderer';
 import type { ViewportGraph } from '@/components/viewports/types';
-import type { CameraTransform, RendererFrameState, RendererSceneInput, RendererSegmentInput } from '@/gl/GraphRenderer';
 
-import { datasets, getDatasetById, getDefaultSample, type DatasetMode } from '@/data/datasets';
+import { getDatasetById, getDefaultSample, datasets, type DatasetMode } from '@/data/datasets';
 import { formatBuildDate, shortSha, useBuildInfo } from '@/lib/buildInfo';
 import { loadDatasetSample, type DatasetJson } from '@/lib/datasetLoader';
-import { clampSampleCaps, deterministicSample, type SamplerResult } from '@/lib/sampler';
+import { clampSampleCaps, deterministicSample } from '@/lib/sampler';
 import {
   getTopoloomWorkerClient,
   type WorkerComputePayload,
@@ -36,22 +38,10 @@ import {
   type ViewerUrlState,
 } from '@/lib/urlState';
 
-type LoadState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'ready'; data: DatasetJson }
-  | { status: 'error'; message: string };
-
-type PrecomputedLayoutPayload = {
-  meta?: {
-    mode?: string;
-    precomputed?: boolean;
-  };
-  layout: WorkerResult['layout'];
-};
-
-type WitnessPartial = Extract<WorkerPartial, { kind: 'witness' }>['witness'];
-type FacesPartial = Extract<WorkerPartial, { kind: 'faces' }>['faces'];
+import { Badge } from '@/ui/Badge';
+import { Button } from '@/ui/Button';
+import { Sheet, SheetContent } from '@/ui/Sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/Tabs';
 
 const MODE_ORDER: DatasetMode[] = [
   'planar-straight',
@@ -60,7 +50,7 @@ const MODE_ORDER: DatasetMode[] = [
   'planarization-orthogonal',
 ];
 
-const stageLabel: Record<WorkerStage, string> = {
+const STAGE_LABEL: Record<WorkerStage, string> = {
   sample: 'Sampling',
   'build-graph': 'Build graph',
   planarity: 'Planarity',
@@ -78,17 +68,45 @@ const stepToReportSection: Record<PipelineStepId, string> = {
   layout: 'report-timings',
 };
 
+type LoadState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'ready'; data: DatasetJson }
+  | { status: 'error'; message: string };
+
+type PrecomputedLayoutPayload = {
+  meta?: {
+    mode?: string;
+    precomputed?: boolean;
+  };
+  layout: WorkerResult['layout'];
+};
+
+type CompareModePanel = {
+  id: string;
+  title: string;
+  scene: RendererSceneInput;
+  bbox: { minX: number; minY: number; maxX: number; maxY: number };
+  graph: ViewportGraph;
+  planar: boolean;
+  crossings: number;
+  bends: number;
+  layoutMs: number;
+};
+
+type ViewerStatus = {
+  text: string;
+  tone: HudStatus['tone'];
+  crossings: number;
+};
+
+type WitnessPartial = Extract<WorkerPartial, { kind: 'witness' }>;
+type SamplePartial = Extract<WorkerPartial, { kind: 'sample' }>;
+type FacesPartial = Extract<WorkerPartial, { kind: 'faces' }>;
+type LayoutTargetPartial = Extract<WorkerPartial, { kind: 'layoutTarget' }>;
+
 function edgeKey(edge: [number, number]) {
   return edge[0] < edge[1] ? `${edge[0]},${edge[1]}` : `${edge[1]},${edge[0]}`;
-}
-
-function buildDegrees(nodeCount: number, edges: Array<[number, number]>) {
-  const degrees = new Array(nodeCount).fill(0);
-  for (const [u, v] of edges) {
-    if (u >= 0 && u < nodeCount) degrees[u] += 1;
-    if (v >= 0 && v < nodeCount) degrees[v] += 1;
-  }
-  return degrees;
 }
 
 function computeBBox(points: Array<{ x: number; y: number }>) {
@@ -112,36 +130,44 @@ function computeBBox(points: Array<{ x: number; y: number }>) {
   return { minX, minY, maxX, maxY };
 }
 
-function buildPreviewPositions(sample: DatasetJson, local: SamplerResult, seed: number) {
-  const geographic = sample.extras?.geographic;
-  if (geographic) {
-    const projected = local.selectedOriginalNodeIndices.map((originalIndex) => ({
-      x: Number(geographic.x[originalIndex] ?? 0),
-      y: Number(geographic.y[originalIndex] ?? 0),
-    }));
-    const bbox = computeBBox(projected);
-    const width = Math.max(1, bbox.maxX - bbox.minX);
-    const height = Math.max(1, bbox.maxY - bbox.minY);
-    const scale = 520 / Math.max(width, height);
-    const cx = (bbox.minX + bbox.maxX) / 2;
-    const cy = (bbox.minY + bbox.maxY) / 2;
+function buildDegrees(nodeCount: number, edges: Array<[number, number]>) {
+  const degrees = new Array(nodeCount).fill(0);
+  for (const [u, v] of edges) {
+    if (u >= 0 && u < nodeCount) degrees[u] += 1;
+    if (v >= 0 && v < nodeCount) degrees[v] += 1;
+  }
+  return degrees;
+}
 
-    return projected.map((point) => ({
-      x: (point.x - cx) * scale,
-      y: -(point.y - cy) * scale,
-    }));
+function hash32(input: string) {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function deterministicScramblePositions(totalNodes: number, salt: string) {
+  const base = hash32(salt);
+  const points: Array<{ x: number; y: number }> = [];
+  const maxRadius = 520;
+
+  for (let id = 0; id < totalNodes; id += 1) {
+    const local = hash32(`${salt}:${id}:${base}`);
+    const t = ((local & 0xffff) / 0xffff);
+    const swirl = (((local >>> 16) & 0xffff) / 0xffff);
+    const radius = Math.sqrt(t) * maxRadius;
+    const angle = swirl * Math.PI * 8 + id * 0.19;
+    const jitter = (hash32(`${salt}:j:${id}`) % 31) - 15;
+
+    points.push({
+      x: Math.cos(angle) * radius + jitter,
+      y: Math.sin(angle) * radius + jitter * 0.75,
+    });
   }
 
-  const golden = 2.399963229728653;
-  const seedOffset = ((Math.trunc(seed) % 997) + 997) % 997;
-  return local.nodes.map((_, id) => {
-    const angle = (id + seedOffset * 0.3) * golden;
-    const radius = 34 + Math.sqrt(id + 1) * 16;
-    return {
-      x: Math.cos(angle) * radius,
-      y: Math.sin(angle) * radius,
-    };
-  });
+  return points;
 }
 
 function buildRouteSegments(
@@ -160,7 +186,7 @@ function buildRouteSegments(
           a: route.points[i - 1],
           b: route.points[i],
           flags,
-          width: flags & 1 ? 2.8 : flags & 4 ? 2.3 : 1.6,
+          width: flags & 1 ? 3.2 : flags & 4 ? 2.7 : 2.05,
         });
       }
       return segments;
@@ -174,7 +200,7 @@ function buildRouteSegments(
       a: positionsMap.get(edge[0]) ?? { x: 0, y: 0 },
       b: positionsMap.get(edge[1]) ?? { x: 0, y: 0 },
       flags,
-      width: flags & 1 ? 2.8 : flags & 4 ? 2.3 : 1.6,
+      width: flags & 1 ? 3.2 : flags & 4 ? 2.7 : 2.05,
     };
   });
 }
@@ -183,27 +209,43 @@ function buildSceneAndGraph(args: {
   sampledNodes: string[];
   sampledEdges: Array<[number, number]>;
   layout: WorkerResult['layout'];
-  previewPositions: Array<{ x: number; y: number }>;
+  scramblePositions: Array<{ x: number; y: number }>;
   nodeFlags: Map<number, number>;
   edgeFlags: Map<string, number>;
   visibleNodeIds?: Set<number>;
+  reducedMotion: boolean;
+  animateToTarget: boolean;
 }) {
-  const { sampledNodes, sampledEdges, layout, previewPositions, nodeFlags, edgeFlags, visibleNodeIds } = args;
+  const {
+    sampledNodes,
+    sampledEdges,
+    layout,
+    scramblePositions,
+    nodeFlags,
+    edgeFlags,
+    visibleNodeIds,
+    reducedMotion,
+    animateToTarget,
+  } = args;
 
   const positionsMap = new Map<number, { x: number; y: number }>(layout.positions);
   const degree = buildDegrees(sampledNodes.length, sampledEdges);
 
   const scene: RendererSceneInput = {
-    preview: true,
-    nodes: sampledNodes.map((label, id) => ({
-      id,
-      label,
-      degree: degree[id] ?? 0,
-      preview: previewPositions[id] ?? { x: 0, y: 0 },
-      target: positionsMap.get(id) ?? previewPositions[id] ?? { x: 0, y: 0 },
-      flags: nodeFlags.get(id) ?? 0,
-      visible: visibleNodeIds ? visibleNodeIds.has(id) : true,
-    })),
+    preview: !reducedMotion,
+    morphDurationMs: reducedMotion ? 560 : 1100,
+    nodes: sampledNodes.map((label, id) => {
+      const target = positionsMap.get(id) ?? scramblePositions[id] ?? { x: 0, y: 0 };
+      return {
+        id,
+        label,
+        degree: degree[id] ?? 0,
+        preview: scramblePositions[id] ?? target,
+        target: animateToTarget ? target : undefined,
+        flags: nodeFlags.get(id) ?? 0,
+        visible: visibleNodeIds ? visibleNodeIds.has(id) : true,
+      };
+    }),
     edges: sampledEdges.map((edge) => ({
       u: edge[0],
       v: edge[1],
@@ -221,7 +263,7 @@ function buildSceneAndGraph(args: {
 
   const graph: ViewportGraph = {
     nodes: sampledNodes.map((label, id) => {
-      const point = positionsMap.get(id) ?? previewPositions[id] ?? { x: 0, y: 0 };
+      const point = positionsMap.get(id) ?? scramblePositions[id] ?? { x: 0, y: 0 };
       return {
         id,
         label,
@@ -272,6 +314,49 @@ function layoutModeForDisplay(mode: DatasetMode, planar: boolean) {
   return mode;
 }
 
+function deriveStatus(result: WorkerResult | null, requestedMode: DatasetMode, partialWitness: WitnessPartial | null): ViewerStatus {
+  if (!result) {
+    if (partialWitness) {
+      return {
+        text: 'Nonplanar • witness shown',
+        tone: 'danger',
+        crossings: 0,
+      };
+    }
+    return {
+      text: 'Preview • waiting for result',
+      tone: 'accent',
+      crossings: 0,
+    };
+  }
+
+  const resolvedMode = result.layout.mode as DatasetMode;
+  const renderMode = layoutModeForDisplay(requestedMode, result.planarity.isPlanar) || resolvedMode;
+
+  if (renderMode.startsWith('planarization')) {
+    const crossings = Math.max(0, Number(result.layout.crossings ?? 0));
+    return {
+      text: `Planarized • crossings ${crossings}`,
+      tone: 'accent',
+      crossings,
+    };
+  }
+
+  if (result.planarity.isPlanar) {
+    return {
+      text: 'Planar • crossings 0',
+      tone: 'success',
+      crossings: 0,
+    };
+  }
+
+  return {
+    text: 'Nonplanar • witness shown',
+    tone: 'danger',
+    crossings: 0,
+  };
+}
+
 function getDefaults(datasetId: string, search: string): [ViewerDefaults, CinemaControlState] | null {
   const dataset = getDatasetById(datasetId);
   if (!dataset) return null;
@@ -295,6 +380,7 @@ function getDefaults(datasetId: string, search: string): [ViewerDefaults, Cinema
     seed: parsed.seed,
     showWitness: parsed.witness,
     showLabels: parsed.labels,
+    showFaces: true,
     showArticulations: parsed.articulations,
     showBridges: parsed.bridges,
     compare: parsed.compare,
@@ -304,6 +390,17 @@ function getDefaults(datasetId: string, search: string): [ViewerDefaults, Cinema
   };
 
   return [defaults, controls];
+}
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
 }
 
 function drawGraphToCanvas(
@@ -320,7 +417,10 @@ function drawGraphToCanvas(
   },
 ) {
   ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = '#030712';
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, '#020617');
+  gradient.addColorStop(1, '#0f172a');
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
   const toScreen = (x: number, y: number) => ({
@@ -332,8 +432,10 @@ function drawGraphToCanvas(
     const key = edgeKey(edge.edge);
     const isWitness = options.highlightWitnessEdges?.has(key) ?? false;
     const isBridge = options.highlightBridges?.has(key) ?? false;
-    ctx.strokeStyle = isWitness ? '#ef4444' : isBridge ? '#f59e0b' : 'rgba(148,163,184,0.68)';
-    ctx.lineWidth = isWitness ? 2.6 : isBridge ? 2.2 : 1.5;
+    ctx.strokeStyle = isWitness ? 'rgba(248, 113, 113, 0.95)' : isBridge ? 'rgba(251, 191, 36, 0.92)' : 'rgba(148, 163, 184, 0.78)';
+    ctx.lineWidth = isWitness ? 2.8 : isBridge ? 2.4 : 1.9;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.beginPath();
     edge.points.forEach((point, index) => {
       const p = toScreen(point.x, point.y);
@@ -345,9 +447,15 @@ function drawGraphToCanvas(
 
   for (const node of graph.nodes) {
     const p = toScreen(node.x, node.y);
+    const radius = node.degree <= 2 ? 3.5 : node.degree <= 4 ? 4.7 : node.degree <= 8 ? 5.7 : 6.8;
     const isArticulation = options.highlightArticulations?.has(node.id) ?? false;
-    const radius = node.degree <= 2 ? 3.4 : node.degree <= 4 ? 4.5 : node.degree <= 8 ? 5.3 : 6.2;
-    ctx.fillStyle = isArticulation ? '#22d3ee' : '#e2e8f0';
+
+    ctx.fillStyle = isArticulation ? 'rgba(34, 211, 238, 0.35)' : 'rgba(56, 189, 248, 0.20)';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius + 2.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = isArticulation ? '#22d3ee' : '#f8fafc';
     ctx.beginPath();
     ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
     ctx.fill();
@@ -355,7 +463,7 @@ function drawGraphToCanvas(
     if (options.showLabels) {
       ctx.fillStyle = '#cbd5e1';
       ctx.font = '11px var(--font-mono), monospace';
-      ctx.fillText(node.label, p.x + radius + 2, p.y - radius - 2);
+      ctx.fillText(node.label, p.x + radius + 3, p.y - radius - 2);
     }
   }
 }
@@ -378,45 +486,41 @@ function makeSvgString(args: {
       const key = edgeKey(edge.edge);
       const isWitness = highlightWitnessEdges?.has(key) ?? false;
       const isBridge = highlightBridges?.has(key) ?? false;
-      const stroke = isWitness ? '#ef4444' : isBridge ? '#f59e0b' : 'rgba(148,163,184,0.68)';
+      const stroke = isWitness ? '#f87171' : isBridge ? '#fbbf24' : 'rgba(148,163,184,0.78)';
       const points = edge.points.map((point) => `${point.x},${point.y}`).join(' ');
-      return `<polyline points="${points}" fill="none" stroke="${stroke}" stroke-width="${(1.6 / camera.scale).toFixed(4)}" stroke-linecap="round" stroke-linejoin="round" />`;
+      return `<polyline points="${points}" fill="none" stroke="${stroke}" stroke-width="${(1.8 / camera.scale).toFixed(4)}" stroke-linejoin="round" stroke-linecap="round" />`;
     })
     .join('');
 
   const nodes = graph.nodes
     .map((node) => {
       const isArticulation = highlightArticulations?.has(node.id) ?? false;
-      const fill = isArticulation ? '#22d3ee' : '#e2e8f0';
-      const radius = (node.degree <= 2 ? 3.4 : node.degree <= 4 ? 4.5 : node.degree <= 8 ? 5.3 : 6.2) / camera.scale;
+      const radius = (node.degree <= 2 ? 3.5 : node.degree <= 4 ? 4.7 : node.degree <= 8 ? 5.7 : 6.8) / camera.scale;
+      const fill = isArticulation ? '#22d3ee' : '#f8fafc';
+      const glow = isArticulation ? 'rgba(34,211,238,0.35)' : 'rgba(56,189,248,0.22)';
       const label = showLabels
-        ? `<text x="${node.x + radius + 2.3}" y="${node.y - radius - 1.4}" fill="#cbd5e1" font-size="${(10 / camera.scale).toFixed(4)}">${node.label.replace(/</g, '&lt;')}</text>`
+        ? `<text x="${node.x + radius + 2.2}" y="${node.y - radius - 1.4}" fill="#cbd5e1" font-size="${(10 / camera.scale).toFixed(4)}">${node.label.replace(/</g, '&lt;')}</text>`
         : '';
-      return `<g><circle cx="${node.x}" cy="${node.y}" r="${radius}" fill="${fill}" />${label}</g>`;
+      return `<g><circle cx="${node.x}" cy="${node.y}" r="${radius + 2.0 / camera.scale}" fill="${glow}" /><circle cx="${node.x}" cy="${node.y}" r="${radius}" fill="${fill}" />${label}</g>`;
     })
     .join('');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect width="${width}" height="${height}" fill="#030712" />
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#020617" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+  </defs>
+  <rect width="${width}" height="${height}" fill="url(#bg)" />
   <g transform="translate(${camera.translateX} ${camera.translateY}) scale(${camera.scale})">
     ${edges}
     ${nodes}
   </g>
-  <rect x="8" y="${height - 26}" width="${Math.min(width - 16, 520)}" height="18" fill="#020617" opacity="0.92" />
-  <text x="12" y="${height - 13}" fill="#cbd5e1" font-size="11" font-family="monospace">${legend.replace(/</g, '&lt;')}</text>
+  <rect x="10" y="${height - 30}" width="${Math.min(width - 20, 560)}" height="20" fill="#020617" opacity="0.9" />
+  <text x="14" y="${height - 16}" fill="#cbd5e1" font-size="11" font-family="monospace">${legend.replace(/</g, '&lt;')}</text>
 </svg>`;
-}
-
-function downloadBlob(filename: string, blob: Blob) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  document.body.removeChild(anchor);
-  URL.revokeObjectURL(url);
 }
 
 export function GalleryViewer() {
@@ -437,6 +541,7 @@ export function GalleryViewer() {
       seed: 1,
       showWitness: true,
       showLabels: false,
+      showFaces: true,
       showArticulations: false,
       showBridges: false,
       compare: false,
@@ -460,13 +565,18 @@ export function GalleryViewer() {
   const [progress, setProgress] = useState<{ stage: WorkerStage; detail?: string } | null>(null);
   const [computeError, setComputeError] = useState<{ message: string; details?: string } | null>(null);
 
+  const [displayStage, setDisplayStage] = useState<{ stage: WorkerStage; detail?: string } | null>(null);
+
   const [partialSampleVisited, setPartialSampleVisited] = useState<number[]>([]);
   const [partialWitness, setPartialWitness] = useState<WitnessPartial | null>(null);
   const [partialFaces, setPartialFaces] = useState<FacesPartial | null>(null);
+  const [partialLayoutTarget, setPartialLayoutTarget] = useState<LayoutTargetPartial | null>(null);
 
   const [controlsOpen, setControlsOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [attributionOpen, setAttributionOpen] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+
   const [cinema, setCinema] = useState(true);
   const [uiVisible, setUiVisible] = useState(true);
   const [tab, setTab] = useState<'report' | 'raw'>('report');
@@ -478,15 +588,19 @@ export function GalleryViewer() {
     finalDeterministic: false,
   });
 
-  const mainViewportRef = useRef<WebGLViewportHandle | null>(null);
-  const idleTimerRef = useRef<number | null>(null);
+  const [reducedMotion, setReducedMotion] = useState(false);
+
+  const stageTimerRef = useRef<number | null>(null);
+  const stageShownAtRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
+  const idleTimerRef = useRef<number | null>(null);
   const autoRunRef = useRef(false);
+  const mainViewportRef = useRef<WebGLViewportHandle | null>(null);
 
   const sampleDef = useMemo(() => {
     if (!dataset) return null;
     return dataset.sampleFiles.find((sample) => sample.id === controls.sample) ?? dataset.sampleFiles[0] ?? null;
-  }, [dataset, controls.sample]);
+  }, [controls.sample, dataset]);
 
   const clampedControls = useMemo(() => {
     if (!dataset) return controls;
@@ -512,13 +626,24 @@ export function GalleryViewer() {
   }, [clampedControls.maxEdges, clampedControls.maxNodes, controls.maxEdges, controls.maxNodes, dataset]);
 
   useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
     if (!sampleDef) return;
     let active = true;
 
     setSampleState({ status: 'loading' });
     setResult(null);
     setCompareResults({});
-    setPrecomputedLayout(null);
+    setPartialSampleVisited([]);
+    setPartialWitness(null);
+    setPartialFaces(null);
+    setPartialLayoutTarget(null);
 
     loadDatasetSample(sampleDef.file)
       .then((loaded) => {
@@ -543,8 +668,8 @@ export function GalleryViewer() {
       setPrecomputedLayout(null);
       return;
     }
-    let active = true;
 
+    let active = true;
     fetch(sampleDef.precomputedFile)
       .then(async (response) => {
         if (!response.ok) return null;
@@ -597,15 +722,11 @@ export function GalleryViewer() {
   const revealUi = useCallback(() => {
     if (!cinema) return;
     setUiVisible(true);
-    if (idleTimerRef.current) {
-      window.clearTimeout(idleTimerRef.current);
-    }
+    if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
     idleTimerRef.current = window.setTimeout(() => {
-      if (!controlsOpen) {
-        setUiVisible(false);
-      }
+      if (!controlsOpen && !reportOpen) setUiVisible(false);
     }, 2200);
-  }, [cinema, controlsOpen]);
+  }, [cinema, controlsOpen, reportOpen]);
 
   useEffect(() => {
     const onMove = () => revealUi();
@@ -618,18 +739,9 @@ export function GalleryViewer() {
   }, [revealUi]);
 
   useEffect(() => {
-    if (!controlsOpen) return;
-    setUiVisible(true);
-  }, [controlsOpen]);
-
-  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setCinema(false);
-        setUiVisible(true);
-      }
-      if ((event.key === 'c' || event.key === 'C') && !event.metaKey && !event.ctrlKey) {
-        setCinema((prev) => !prev);
         setUiVisible(true);
       }
     };
@@ -639,8 +751,9 @@ export function GalleryViewer() {
 
   useEffect(() => {
     return () => {
-      if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
       abortRef.current?.abort();
+      if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
+      if (stageTimerRef.current) window.clearTimeout(stageTimerRef.current);
     };
   }, []);
 
@@ -653,7 +766,7 @@ export function GalleryViewer() {
       clampedControls.maxNodes,
       clampedControls.maxEdges,
     );
-  }, [sampleState, clampedControls.seed, clampedControls.maxEdges, clampedControls.maxNodes]);
+  }, [clampedControls.maxEdges, clampedControls.maxNodes, clampedControls.seed, sampleState]);
 
   const originalToSampled = useMemo(() => {
     if (!localSample) return new Map<number, number>();
@@ -664,10 +777,13 @@ export function GalleryViewer() {
     return map;
   }, [localSample]);
 
-  const previewPositions = useMemo(() => {
-    if (!localSample || sampleState.status !== 'ready') return [];
-    return buildPreviewPositions(sampleState.data, localSample, clampedControls.seed);
-  }, [localSample, sampleState, clampedControls.seed]);
+  const scramblePositions = useMemo(() => {
+    if (!localSample || !sampleDef || !dataset) return [];
+    return deterministicScramblePositions(
+      localSample.nodes.length,
+      `${dataset.id}:${sampleDef.id}:${clampedControls.seed}`,
+    );
+  }, [clampedControls.seed, dataset, localSample, sampleDef]);
 
   const runningVisibleSet = useMemo(() => {
     if (!running || partialSampleVisited.length === 0) return undefined;
@@ -687,20 +803,22 @@ export function GalleryViewer() {
 
   const neighborIds = useMemo(() => {
     if (selectedNodeId === null) return new Set<number>();
-    const neighbors = new Set<number>();
+    const set = new Set<number>();
     for (const [u, v] of currentSampledEdges) {
-      if (u === selectedNodeId) neighbors.add(v);
-      if (v === selectedNodeId) neighbors.add(u);
+      if (u === selectedNodeId) set.add(v);
+      if (v === selectedNodeId) set.add(u);
     }
-    return neighbors;
+    return set;
   }, [currentSampledEdges, selectedNodeId]);
+
+  const facesAvailable = Boolean(result?.report.faces || partialFaces);
 
   const edgeFlags = useMemo(() => {
     const map = new Map<string, number>();
 
     if (clampedControls.showWitness) {
-      const witnessEdges = result?.highlights.witnessEdges ?? partialWitness?.edgePairs ?? [];
-      for (const edge of witnessEdges) {
+      const edges = result?.highlights.witnessEdges ?? partialWitness?.edges ?? [];
+      for (const edge of edges) {
         map.set(edgeKey(edge), (map.get(edgeKey(edge)) ?? 0) | 1);
       }
     }
@@ -711,38 +829,28 @@ export function GalleryViewer() {
       }
     }
 
-    if (running && partialFaces) {
+    if (clampedControls.showFaces && facesAvailable) {
       for (const edge of currentSampledEdges) {
-        const key = edgeKey(edge);
-        map.set(key, (map.get(key) ?? 0) | 8);
+        map.set(edgeKey(edge), (map.get(edgeKey(edge)) ?? 0) | 8);
       }
     }
 
     return map;
-  }, [
-    clampedControls.showBridges,
-    clampedControls.showWitness,
-    currentSampledEdges,
-    partialFaces,
-    partialWitness?.edgePairs,
-    result?.highlights.bridges,
-    result?.highlights.witnessEdges,
-    running,
-  ]);
+  }, [clampedControls.showBridges, clampedControls.showFaces, clampedControls.showWitness, currentSampledEdges, facesAvailable, partialWitness?.edges, result?.highlights.bridges, result?.highlights.witnessEdges]);
 
   const nodeFlags = useMemo(() => {
     const map = new Map<number, number>();
 
     if (clampedControls.showArticulations && result?.highlights.articulationPoints) {
-      for (const nodeId of result.highlights.articulationPoints) {
-        map.set(nodeId, (map.get(nodeId) ?? 0) | 2);
+      for (const id of result.highlights.articulationPoints) {
+        map.set(id, (map.get(id) ?? 0) | 2);
       }
     }
 
     if (selectedNodeId !== null) {
       map.set(selectedNodeId, (map.get(selectedNodeId) ?? 0) | 16);
-      for (const neighbor of neighborIds) {
-        map.set(neighbor, (map.get(neighbor) ?? 0) | 32);
+      for (const id of neighborIds) {
+        map.set(id, (map.get(id) ?? 0) | 32);
       }
     }
 
@@ -750,66 +858,101 @@ export function GalleryViewer() {
   }, [clampedControls.showArticulations, neighborIds, result?.highlights.articulationPoints, selectedNodeId]);
 
   const previewLayout = useMemo(() => {
-    if (!localSample || previewPositions.length === 0) return null;
-    return buildPreviewLayout(previewPositions);
-  }, [localSample, previewPositions]);
+    if (!localSample || scramblePositions.length === 0) return null;
+    return buildPreviewLayout(scramblePositions);
+  }, [localSample, scramblePositions]);
 
-  const precomputedSceneBundle = useMemo(() => {
-    if (!localSample || !precomputedLayout || !previewLayout) return null;
-    if (precomputedLayout.positions.length !== localSample.nodes.length) return null;
-    return buildSceneAndGraph({
-      sampledNodes: localSample.nodes,
-      sampledEdges: localSample.edges,
-      layout: precomputedLayout,
-      previewPositions,
-      nodeFlags,
-      edgeFlags,
-      visibleNodeIds: runningVisibleSet,
-    });
-  }, [edgeFlags, localSample, nodeFlags, precomputedLayout, previewLayout, previewPositions, runningVisibleSet]);
+  const partialLayout = useMemo(() => {
+    if (!partialLayoutTarget || !localSample) return null;
+    const positions = partialLayoutTarget.positions
+      .map(([id, x, y]) => [id, { x, y }] as [number, { x: number; y: number }])
+      .sort((a, b) => a[0] - b[0]);
 
-  const resultSceneBundle = useMemo(() => {
-    if (!result || !previewLayout) return null;
-    return buildSceneAndGraph({
-      sampledNodes: result.sampledGraph.nodes,
-      sampledEdges: result.sampledGraph.edges,
-      layout: result.layout,
-      previewPositions,
-      nodeFlags,
-      edgeFlags,
-      visibleNodeIds: undefined,
-    });
-  }, [edgeFlags, nodeFlags, previewLayout, previewPositions, result]);
+    if (positions.length === 0) return null;
+    const bbox = computeBBox(positions.map(([, p]) => p));
 
-  const previewSceneBundle = useMemo(() => {
-    if (!localSample || !previewLayout) return null;
+    return {
+      mode: 'partial-layout',
+      crossings: 0,
+      bends: 0,
+      positions,
+      edgeRoutes: [] as Array<{ edge: [number, number]; points: Array<{ x: number; y: number }> }>,
+      bbox,
+    } satisfies WorkerResult['layout'];
+  }, [localSample, partialLayoutTarget]);
+
+  const previewBundle = useMemo(() => {
+    if (!previewLayout || !localSample) return null;
     return buildSceneAndGraph({
       sampledNodes: localSample.nodes,
       sampledEdges: localSample.edges,
       layout: previewLayout,
-      previewPositions,
+      scramblePositions,
       nodeFlags,
       edgeFlags,
       visibleNodeIds: runningVisibleSet,
+      reducedMotion,
+      animateToTarget: false,
     });
-  }, [edgeFlags, localSample, nodeFlags, previewLayout, previewPositions, runningVisibleSet]);
+  }, [edgeFlags, localSample, nodeFlags, previewLayout, reducedMotion, runningVisibleSet, scramblePositions]);
 
-  const activeBundle = resultSceneBundle ?? precomputedSceneBundle ?? previewSceneBundle;
+  const partialTargetBundle = useMemo(() => {
+    if (!partialLayout || !localSample) return null;
+    return buildSceneAndGraph({
+      sampledNodes: localSample.nodes,
+      sampledEdges: localSample.edges,
+      layout: partialLayout,
+      scramblePositions,
+      nodeFlags,
+      edgeFlags,
+      visibleNodeIds: runningVisibleSet,
+      reducedMotion,
+      animateToTarget: true,
+    });
+  }, [edgeFlags, localSample, nodeFlags, partialLayout, reducedMotion, runningVisibleSet, scramblePositions]);
+
+  const precomputedBundle = useMemo(() => {
+    if (!precomputedLayout || !localSample) return null;
+    return buildSceneAndGraph({
+      sampledNodes: localSample.nodes,
+      sampledEdges: localSample.edges,
+      layout: precomputedLayout,
+      scramblePositions: precomputedLayout.positions.map(([, p]) => ({ x: p.x, y: p.y })),
+      nodeFlags,
+      edgeFlags,
+      reducedMotion,
+      animateToTarget: false,
+    });
+  }, [edgeFlags, localSample, nodeFlags, precomputedLayout, reducedMotion]);
+
+  const resultBundle = useMemo(() => {
+    if (!result) return null;
+    return buildSceneAndGraph({
+      sampledNodes: result.sampledGraph.nodes,
+      sampledEdges: result.sampledGraph.edges,
+      layout: result.layout,
+      scramblePositions,
+      nodeFlags,
+      edgeFlags,
+      reducedMotion,
+      animateToTarget: true,
+    });
+  }, [edgeFlags, nodeFlags, reducedMotion, result, scramblePositions]);
+
+  const activeBundle = resultBundle ?? partialTargetBundle ?? (running ? previewBundle : precomputedBundle ?? previewBundle);
 
   const comparePanels = useMemo(() => {
-    if (!clampedControls.compare || sampleState.status !== 'ready') return [];
-    const primary = result;
-    if (!primary) return [];
+    if (!clampedControls.compare || sampleState.status !== 'ready' || !result) return [] as CompareModePanel[];
 
-    const baseModes: DatasetMode[] = primary.planarity.isPlanar
+    const baseline: DatasetMode[] = result.planarity.isPlanar
       ? ['planar-straight', 'orthogonal', clampedControls.mode]
       : ['planarization-straight', 'planarization-orthogonal', clampedControls.mode];
 
-    const desired = [...new Set([...baseModes, ...clampedControls.compareModes, clampedControls.mode])]
+    const desired = [...new Set([...baseline, ...clampedControls.compareModes, clampedControls.mode])]
       .filter((mode): mode is DatasetMode => MODE_ORDER.includes(mode as DatasetMode))
       .slice(0, 3);
 
-    return desired
+    const panels = desired
       .map((mode) => {
         const modeResult = compareResults[mode];
         if (!modeResult) return null;
@@ -817,9 +960,11 @@ export function GalleryViewer() {
           sampledNodes: modeResult.sampledGraph.nodes,
           sampledEdges: modeResult.sampledGraph.edges,
           layout: modeResult.layout,
-          previewPositions,
+          scramblePositions,
           nodeFlags,
           edgeFlags,
+          reducedMotion,
+          animateToTarget: true,
         });
 
         return {
@@ -829,13 +974,37 @@ export function GalleryViewer() {
           bbox: bundle.bbox,
           graph: bundle.graph,
           planar: modeResult.planarity.isPlanar,
-          crossings: modeResult.layout.crossings ?? 0,
-          bends: modeResult.layout.bends ?? 0,
+          crossings: Math.max(0, Number(modeResult.layout.crossings ?? 0)),
+          bends: Math.max(0, Number(modeResult.layout.bends ?? 0)),
           layoutMs: Math.round(modeResult.timingsMs.layout ?? 0),
         };
       })
       .filter((panel): panel is NonNullable<typeof panel> => Boolean(panel));
-  }, [clampedControls.compare, clampedControls.compareModes, clampedControls.mode, compareResults, edgeFlags, nodeFlags, previewPositions, result, sampleState.status]);
+
+    return panels as CompareModePanel[];
+  }, [clampedControls.compare, clampedControls.compareModes, clampedControls.mode, compareResults, edgeFlags, nodeFlags, reducedMotion, result, sampleState.status, scramblePositions]);
+
+  const updateDisplayStage = useCallback((next: { stage: WorkerStage; detail?: string }) => {
+    if (!displayStage) {
+      stageShownAtRef.current = Date.now();
+      setDisplayStage(next);
+      return;
+    }
+
+    if (displayStage.stage === next.stage) {
+      setDisplayStage(next);
+      return;
+    }
+
+    const elapsed = Date.now() - stageShownAtRef.current;
+    const wait = Math.max(0, 150 - elapsed);
+
+    if (stageTimerRef.current) window.clearTimeout(stageTimerRef.current);
+    stageTimerRef.current = window.setTimeout(() => {
+      stageShownAtRef.current = Date.now();
+      setDisplayStage(next);
+    }, wait);
+  }, [displayStage]);
 
   const runCompute = useCallback(async () => {
     if (!dataset || !sampleDef || sampleState.status !== 'ready') return;
@@ -845,19 +1014,26 @@ export function GalleryViewer() {
     abortRef.current = abort;
 
     setRunning(true);
-    setProgress({ stage: 'sample', detail: 'deterministic BFS sampling' });
-    setComputeError(null);
     setResult(null);
     setCompareResults({});
+    setComputeError(null);
+    setProgress({ stage: 'sample', detail: 'deterministic BFS sampling' });
+    updateDisplayStage({ stage: 'sample', detail: 'deterministic BFS sampling' });
+
     setPartialSampleVisited([]);
     setPartialWitness(null);
     setPartialFaces(null);
+    setPartialLayoutTarget(null);
     setSelectedNodeId(null);
+    setMainCamera(undefined);
+    setReportOpen(false);
     revealUi();
+
+    const startedAt = performance.now();
 
     const client = getTopoloomWorkerClient();
 
-    const computeForMode = async (mode: DatasetMode, streamPartials = false) => {
+    const computeForMode = async (mode: DatasetMode, streamPartials: boolean) => {
       const payload: WorkerComputePayload = {
         datasetId: dataset.id,
         sampleId: sampleDef.id,
@@ -876,19 +1052,25 @@ export function GalleryViewer() {
         signal: abort.signal,
         onProgress: (next) => {
           setProgress(next);
+          updateDisplayStage(next);
         },
         onPartial: streamPartials
           ? (partial) => {
-              if (partial.kind === 'sampling') {
-                setPartialSampleVisited(partial.visitedNodeIds);
+              if (partial.kind === 'sample') {
+                const samplePartial = partial as SamplePartial;
+                setPartialSampleVisited(samplePartial.visited);
                 return;
               }
               if (partial.kind === 'witness') {
-                setPartialWitness(partial.witness);
+                setPartialWitness(partial as WitnessPartial);
                 return;
               }
               if (partial.kind === 'faces') {
-                setPartialFaces(partial.faces);
+                setPartialFaces(partial as FacesPartial);
+                return;
+              }
+              if (partial.kind === 'layoutTarget') {
+                setPartialLayoutTarget(partial as LayoutTargetPartial);
               }
             }
           : undefined,
@@ -897,6 +1079,15 @@ export function GalleryViewer() {
 
     try {
       const primary = await computeForMode(clampedControls.mode, true);
+
+      const minimumPreviewMs = reducedMotion ? 180 : 320;
+      const elapsed = performance.now() - startedAt;
+      if (elapsed < minimumPreviewMs) {
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, minimumPreviewMs - elapsed);
+        });
+      }
+
       setResult(primary);
 
       const compareMap: Record<string, WorkerResult> = {
@@ -914,22 +1105,25 @@ export function GalleryViewer() {
 
         for (const mode of desired) {
           if (compareMap[mode]) continue;
-          setProgress({ stage: 'layout', detail: `compare mode: ${mode}` });
           const modeResult = await computeForMode(mode, false);
           compareMap[mode] = modeResult;
         }
       }
 
       setCompareResults(compareMap);
+      setProgress({ stage: 'report', detail: 'report ready' });
+      updateDisplayStage({ stage: 'report', detail: 'report ready' });
+      window.setTimeout(() => {
+        setDisplayStage(null);
+      }, 350);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const details = error instanceof Error ? error.stack : undefined;
       setComputeError({ message: 'Compute failed', details: `${message}\n${details ?? ''}`.trim() });
     } finally {
       setRunning(false);
-      setProgress((prev) => (prev?.stage === 'serialize' ? prev : null));
     }
-  }, [clampedControls, dataset, revealUi, sampleDef, sampleState]);
+  }, [clampedControls, dataset, reducedMotion, revealUi, sampleDef, sampleState, updateDisplayStage]);
 
   useEffect(() => {
     if (sampleState.status !== 'ready') return;
@@ -942,6 +1136,93 @@ export function GalleryViewer() {
     autoRunRef.current = false;
   }, [datasetId, sampleDef?.id]);
 
+  const selectedGraph = activeBundle?.graph ?? null;
+
+  const viewerStatus = useMemo(() => deriveStatus(result, clampedControls.mode, partialWitness), [clampedControls.mode, partialWitness, result]);
+
+  const showWitnessSet = useMemo(() => {
+    if (!clampedControls.showWitness) return undefined;
+    const edges = result?.highlights.witnessEdges ?? partialWitness?.edges ?? [];
+    return new Set(edges.map((edge) => edgeKey(edge)));
+  }, [clampedControls.showWitness, partialWitness?.edges, result?.highlights.witnessEdges]);
+
+  const showBridgesSet = useMemo(() => {
+    if (!clampedControls.showBridges || !result?.highlights.bridges) return undefined;
+    return new Set(result.highlights.bridges.map((edge) => edgeKey(edge)));
+  }, [clampedControls.showBridges, result?.highlights.bridges]);
+
+  const showArticulationsSet = useMemo(() => {
+    if (!clampedControls.showArticulations || !result?.highlights.articulationPoints) return undefined;
+    return new Set(result.highlights.articulationPoints);
+  }, [clampedControls.showArticulations, result?.highlights.articulationPoints]);
+
+  const metrics = useMemo(() => {
+    if (result) {
+      return {
+        nodes: result.sampledStats.nodes,
+        edges: result.sampledStats.edges,
+        crossings: viewerStatus.crossings,
+        bends: Math.max(0, Number(result.layout.bends ?? 0)),
+      };
+    }
+    if (localSample) {
+      return {
+        nodes: localSample.stats.nodes,
+        edges: localSample.stats.edges,
+        crossings: 0,
+        bends: 0,
+      };
+    }
+    return null;
+  }, [localSample, result, viewerStatus.crossings]);
+
+  const computeLabel = useMemo(() => {
+    if (result && frameState.finalDeterministic) return 'Final (TopoLoom deterministic)' as const;
+    if (result && reducedMotion) return 'Final (TopoLoom deterministic)' as const;
+    if (precomputedLayout && !running && !result) return 'Final (TopoLoom deterministic)' as const;
+    return 'Preview (animated)' as const;
+  }, [frameState.finalDeterministic, precomputedLayout, reducedMotion, result, running]);
+
+  const stageText = useMemo(() => {
+    if (!displayStage) return null;
+    if (displayStage.stage === 'sample') {
+      return `Sampling growth: ${partialSampleVisited.length.toLocaleString()} nodes revealed`;
+    }
+    if (displayStage.stage === 'planarity') {
+      if (partialWitness) {
+        return `Witness ${partialWitness.witnessKind} (${partialWitness.edges.length} edges)`;
+      }
+      return 'Testing planarity';
+    }
+    if (displayStage.stage === 'embedding') {
+      return partialFaces ? `Faces found: ${partialFaces.faceSizes.length}` : 'Building half-edge mesh';
+    }
+    if (displayStage.stage === 'layout') {
+      return 'Untangling: scramble → deterministic layout';
+    }
+    if (displayStage.stage === 'report') {
+      return 'Report ready';
+    }
+    return displayStage.detail ?? 'Serializing';
+  }, [displayStage, partialFaces, partialSampleVisited.length, partialWitness]);
+
+  const pipelineActiveSteps = useMemo(() => {
+    if (result?.planarity.isPlanar) return ['graph', 'planarity', 'embedding', 'mesh', 'layout'] as PipelineStepId[];
+    if (result) return ['graph', 'planarity', 'layout'] as PipelineStepId[];
+    if (partialFaces) return ['graph', 'planarity', 'embedding', 'mesh'] as PipelineStepId[];
+    if (partialWitness) return ['graph', 'planarity'] as PipelineStepId[];
+    if (partialSampleVisited.length > 0) return ['graph'] as PipelineStepId[];
+    return ['graph'] as PipelineStepId[];
+  }, [partialFaces, partialSampleVisited.length, partialWitness, result]);
+
+  const onPipelineStepClick = (step: PipelineStepId) => {
+    const id = stepToReportSection[step];
+    const target = document.getElementById(id);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setReportOpen(true);
+    setTab('report');
+  };
+
   const copyShareLink = useCallback(async () => {
     const url = window.location.href;
     try {
@@ -952,54 +1233,10 @@ export function GalleryViewer() {
     }
   }, []);
 
-  const pipelineActiveSteps = useMemo(() => {
-    if (result?.planarity.isPlanar) return ['graph', 'planarity', 'embedding', 'mesh', 'layout'] as PipelineStepId[];
-    if (result) return ['graph', 'planarity', 'layout'] as PipelineStepId[];
-    if (partialFaces) return ['graph', 'planarity', 'embedding', 'mesh'] as PipelineStepId[];
-    if (partialWitness) return ['graph', 'planarity'] as PipelineStepId[];
-    return ['graph'] as PipelineStepId[];
-  }, [partialFaces, partialWitness, result]);
-
-  const onPipelineStepClick = (step: PipelineStepId) => {
-    const id = stepToReportSection[step];
-    const target = document.getElementById(id);
-    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
-  const showWitnessSet = useMemo(() => {
-    if (!clampedControls.showWitness) return undefined;
-    const edges = result?.highlights.witnessEdges ?? partialWitness?.edgePairs ?? [];
-    return new Set(edges.map((edge) => edgeKey(edge)));
-  }, [clampedControls.showWitness, partialWitness?.edgePairs, result?.highlights.witnessEdges]);
-
-  const showBridgeSet = useMemo(() => {
-    if (!clampedControls.showBridges || !result?.highlights.bridges) return undefined;
-    return new Set(result.highlights.bridges.map((edge) => edgeKey(edge)));
-  }, [clampedControls.showBridges, result?.highlights.bridges]);
-
-  const showArticulationSet = useMemo(() => {
-    if (!clampedControls.showArticulations || !result?.highlights.articulationPoints) return undefined;
-    return new Set(result.highlights.articulationPoints);
-  }, [clampedControls.showArticulations, result?.highlights.articulationPoints]);
-
-  const selectedGraph = activeBundle?.graph ?? null;
-
-  const pickedNodeInfo = useMemo(() => {
-    if (selectedNodeId === null || !selectedGraph) return null;
-    const node = selectedGraph.nodes.find((n) => n.id === selectedNodeId);
-    if (!node) return null;
-    return {
-      id: node.id,
-      label: node.label,
-      degree: node.degree,
-      neighbors: neighborIds.size,
-    };
-  }, [neighborIds.size, selectedGraph, selectedNodeId]);
-
   const exportPng = useCallback(() => {
     if (!dataset || !sampleDef || !selectedGraph) return;
 
-    const legend = `${dataset.name} • ${clampedControls.mode} • seed ${clampedControls.seed} • TopoLoom v${buildInfo.libraryVersion ?? 'unknown'}`;
+    const legend = `${dataset.name} • ${sampleDef.label} • ${clampedControls.mode} • seed ${clampedControls.seed} • ${viewerStatus.text} • TopoLoom v${buildInfo.libraryVersion ?? 'unknown'}`;
     const fileName = `topoloom_${dataset.id}_${sampleDef.id}_${clampedControls.mode}_seed${clampedControls.seed}.png`;
 
     if (!clampedControls.compare && clampedControls.renderer === 'webgl' && mainViewportRef.current) {
@@ -1012,13 +1249,12 @@ export function GalleryViewer() {
         if (ctx) {
           const rgba = new Uint8ClampedArray(capture.pixels.length);
           rgba.set(capture.pixels);
-          const imageData = new ImageData(rgba, capture.width, capture.height);
-          ctx.putImageData(imageData, 0, 0);
+          ctx.putImageData(new ImageData(rgba, capture.width, capture.height), 0, 0);
           ctx.fillStyle = 'rgba(2,6,23,0.92)';
-          ctx.fillRect(16, capture.height - 48, Math.min(capture.width - 32, 720), 28);
+          ctx.fillRect(14, capture.height - 50, Math.min(capture.width - 28, 980), 32);
           ctx.fillStyle = '#cbd5e1';
           ctx.font = '22px monospace';
-          ctx.fillText(legend, 24, capture.height - 28);
+          ctx.fillText(legend, 22, capture.height - 28);
           canvas.toBlob((blob) => {
             if (!blob) return;
             downloadBlob(fileName, blob);
@@ -1029,37 +1265,37 @@ export function GalleryViewer() {
     }
 
     const width = 1440;
-    const height = 960;
+    const height = 920;
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const camera = mainCamera ?? {
+    const transform = mainCamera ?? {
       scale: 1,
       translateX: width / 2,
       translateY: height / 2,
     };
 
-    drawGraphToCanvas(ctx, width, height, selectedGraph, camera, {
+    drawGraphToCanvas(ctx, width, height, selectedGraph, transform, {
       showLabels: clampedControls.showLabels,
       highlightWitnessEdges: showWitnessSet,
-      highlightBridges: showBridgeSet,
-      highlightArticulations: showArticulationSet,
+      highlightBridges: showBridgesSet,
+      highlightArticulations: showArticulationsSet,
     });
 
     ctx.fillStyle = 'rgba(2,6,23,0.92)';
-    ctx.fillRect(12, height - 30, Math.min(width - 24, 700), 20);
+    ctx.fillRect(12, height - 32, Math.min(width - 24, 980), 20);
     ctx.fillStyle = '#cbd5e1';
     ctx.font = '12px monospace';
-    ctx.fillText(legend, 16, height - 15);
+    ctx.fillText(legend, 18, height - 17);
 
     canvas.toBlob((blob) => {
       if (!blob) return;
       downloadBlob(fileName, blob);
     }, 'image/png');
-  }, [buildInfo.libraryVersion, clampedControls.compare, clampedControls.mode, clampedControls.renderer, clampedControls.seed, clampedControls.showLabels, dataset, mainCamera, sampleDef, selectedGraph, showArticulationSet, showBridgeSet, showWitnessSet]);
+  }, [buildInfo.libraryVersion, clampedControls.compare, clampedControls.mode, clampedControls.renderer, clampedControls.seed, clampedControls.showLabels, dataset, mainCamera, sampleDef, selectedGraph, showArticulationsSet, showBridgesSet, showWitnessSet, viewerStatus.text]);
 
   const exportSvg = useCallback(() => {
     if (!dataset || !sampleDef || !selectedGraph) return;
@@ -1072,7 +1308,7 @@ export function GalleryViewer() {
       translateY: height / 2,
     };
 
-    const legend = `${dataset.name} • ${clampedControls.mode} • seed ${clampedControls.seed} • TopoLoom v${buildInfo.libraryVersion ?? 'unknown'}`;
+    const legend = `${dataset.name} • ${sampleDef.label} • ${clampedControls.mode} • seed ${clampedControls.seed} • ${viewerStatus.text} • TopoLoom v${buildInfo.libraryVersion ?? 'unknown'}`;
     const svg = makeSvgString({
       graph: selectedGraph,
       width,
@@ -1080,259 +1316,172 @@ export function GalleryViewer() {
       camera,
       showLabels: clampedControls.showLabels,
       highlightWitnessEdges: showWitnessSet,
-      highlightBridges: showBridgeSet,
-      highlightArticulations: showArticulationSet,
+      highlightBridges: showBridgesSet,
+      highlightArticulations: showArticulationsSet,
       legend,
     });
 
     const fileName = `topoloom_${dataset.id}_${sampleDef.id}_${clampedControls.mode}_seed${clampedControls.seed}.svg`;
     downloadBlob(fileName, new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
-  }, [buildInfo.libraryVersion, clampedControls.mode, clampedControls.seed, clampedControls.showLabels, dataset, mainCamera, sampleDef, selectedGraph, showArticulationSet, showBridgeSet, showWitnessSet]);
-
-  const stageEffectText = useMemo(() => {
-    if (!progress) return null;
-    if (progress.stage === 'sample') {
-      return `Sampling growth: ${partialSampleVisited.length.toLocaleString()} nodes visited`;
-    }
-    if (progress.stage === 'planarity') {
-      return partialWitness
-        ? `Witness ${partialWitness.kind} (${partialWitness.edgePairs.length} edges)`
-        : 'Testing planarity';
-    }
-    if (progress.stage === 'embedding') {
-      return partialFaces ? `Faces detected: ${partialFaces.count}` : 'Building half-edge mesh';
-    }
-    if (progress.stage === 'layout') {
-      return 'Morphing preview toward deterministic layout';
-    }
-    if (progress.stage === 'report') {
-      return 'Computing BC/SPQR report';
-    }
-    return progress.detail ?? 'Serializing results';
-  }, [partialFaces, partialSampleVisited.length, partialWitness, progress]);
-
-  const computeLabel = useMemo(() => {
-    if (result && frameState.finalDeterministic) return 'Final (TopoLoom deterministic)' as const;
-    if (!result && precomputedLayout) return 'Final (TopoLoom deterministic)' as const;
-    return 'Preview (animated)' as const;
-  }, [frameState.finalDeterministic, precomputedLayout, result]);
-
-  const hudMetrics = useMemo(() => {
-    if (result) {
-      return {
-        nodes: result.sampledStats.nodes,
-        edges: result.sampledStats.edges,
-        planar: result.planarity.isPlanar,
-        crossings: result.layout.crossings ?? 0,
-        bends: result.layout.bends ?? 0,
-      };
-    }
-    if (localSample) {
-      return {
-        nodes: localSample.stats.nodes,
-        edges: localSample.stats.edges,
-        planar: undefined,
-        crossings: 0,
-        bends: 0,
-      };
-    }
-    return null;
-  }, [localSample, result]);
+  }, [buildInfo.libraryVersion, clampedControls.mode, clampedControls.seed, clampedControls.showLabels, dataset, mainCamera, sampleDef, selectedGraph, showArticulationsSet, showBridgesSet, showWitnessSet, viewerStatus.text]);
 
   const buildLabel = `TopoLoom v${buildInfo.libraryVersion ?? 'unknown'} • ${shortSha(buildInfo.gitSha)} • ${formatBuildDate(buildInfo.builtAt)}`;
-  const commitUrl = buildInfo.gitSha && buildInfo.gitSha !== 'unknown'
-    ? `https://github.com/khalidsaidi/topoloom/commit/${buildInfo.gitSha}`
-    : null;
+
+  const chromeVisible = !cinema || uiVisible || controlsOpen || reportOpen;
 
   if (!dataset) {
     return (
-      <div className="m-4 rounded-xl border border-white/20 bg-black/60 p-6 text-sm text-white/80">
+      <div className="m-4 rounded-xl border border-red-300/30 bg-red-500/20 p-4 text-sm text-red-100">
         Unknown dataset. Return to <Link className="underline" to="/gallery">Gallery</Link>.
       </div>
     );
   }
 
-  const headerVisible = !cinema || uiVisible;
-
   return (
-    <div className="relative min-h-[calc(100vh-3.5rem)] overflow-hidden bg-black text-white" onMouseMove={revealUi} onTouchStart={revealUi}>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(56,189,248,0.18),transparent_38%),radial-gradient(circle_at_85%_0%,rgba(16,185,129,0.2),transparent_42%),#020617]" />
+    <div className="theme-cinema relative min-h-screen overflow-hidden" onMouseMove={revealUi} onTouchStart={revealUi}>
+      <div className="fixed inset-0 z-0">
+        {sampleState.status === 'loading' ? <div className="h-full w-full animate-pulse bg-slate-900" /> : null}
 
-      <AnimatePresence>
-        {headerVisible ? (
-          <motion.header
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            className="absolute left-3 right-3 top-3 z-30 flex flex-wrap items-center justify-between gap-2"
-          >
-            <div className="rounded-xl border border-white/20 bg-black/55 px-3 py-2 text-xs text-white/80 backdrop-blur">
-              <Link className="underline underline-offset-4" to="/gallery">
-                Gallery
-              </Link>{' '}
-              / {dataset.name}
+        {sampleState.status === 'error' ? (
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="rounded-xl border border-red-300/30 bg-red-500/20 p-4 text-sm text-red-100">
+              Dataset load failed: {sampleState.message}
             </div>
-
-            <div className="flex items-center gap-2">
-              {commitUrl ? (
-                <a
-                  href={commitUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="rounded-xl border border-white/20 bg-black/55 px-3 py-2 text-xs text-white/80 backdrop-blur"
-                  title={`${buildInfo.gitSha ?? 'unknown'} (${buildInfo.gitRef ?? 'unknown'})`}
-                >
-                  {buildLabel}
-                </a>
-              ) : (
-                <div className="rounded-xl border border-white/20 bg-black/55 px-3 py-2 text-xs text-white/80 backdrop-blur">
-                  {buildLabel}
-                </div>
-              )}
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-white/30 bg-black/55 text-white hover:bg-black/75"
-                onClick={() => setCinema((prev) => !prev)}
-                aria-label="Toggle cinema mode"
-              >
-                {cinema ? 'Exit cinema' : 'Cinema'}
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-white/30 bg-black/55 text-white hover:bg-black/75"
-                onClick={() => setControlsOpen(true)}
-                aria-label="Open controls"
-              >
-                Controls
-              </Button>
-            </div>
-          </motion.header>
-        ) : null}
-      </AnimatePresence>
-
-      <HUD
-        visible={headerVisible}
-        datasetName={dataset.name}
-        sampleLabel={sampleDef?.label ?? ''}
-        modeLabel={layoutModeForDisplay(clampedControls.mode, result?.planarity.isPlanar ?? false)}
-        stageLabel={progress ? stageLabel[progress.stage] : undefined}
-        computeLabel={computeLabel}
-        metrics={hudMetrics}
-        timings={result?.timingsMs}
-        buildLabel={sampleDef?.precomputedFile && !result ? `${buildLabel} • computed by TopoLoom (precomputed asset)` : buildLabel}
-      />
-
-      <div className={cinema ? 'relative h-[calc(100vh-3.5rem)] pt-16' : 'relative mx-auto max-w-7xl space-y-4 px-3 pb-8 pt-20'}>
-        <div className={cinema ? 'absolute inset-0 pt-16' : ''}>
-          <div className={cinema ? 'h-full px-3 pb-3' : 'space-y-3'}>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <PipelineStrip activeSteps={pipelineActiveSteps} onStepClick={onPipelineStepClick} />
-              {result ? (
-                <Badge variant={result.planarity.isPlanar ? 'secondary' : 'destructive'}>
-                  {result.planarity.isPlanar ? 'Planar' : 'Nonplanar'}
-                  {typeof result.layout.crossings === 'number' ? ` • crossings ${result.layout.crossings}` : ''}
-                </Badge>
-              ) : null}
-            </div>
-
-            {sampleState.status === 'loading' ? (
-              <div className="h-[72vh] animate-pulse rounded-2xl border border-white/20 bg-white/5" />
-            ) : null}
-
-            {sampleState.status === 'error' ? (
-              <div className="rounded-xl border border-red-400/40 bg-red-500/15 p-4 text-sm text-red-100">
-                Dataset load failed: {sampleState.message}
-              </div>
-            ) : null}
-
-            {sampleState.status === 'ready' && activeBundle && !clampedControls.compare ? (
-              clampedControls.renderer === 'webgl' ? (
-                <WebGLViewport
-                  ref={mainViewportRef}
-                  className={cinema ? 'h-[calc(100%-1.75rem)] min-h-[62vh] rounded-2xl border-white/20' : 'h-[72vh] rounded-2xl border-white/20'}
-                  scene={activeBundle.scene}
-                  bbox={activeBundle.bbox}
-                  camera={mainCamera}
-                  onCameraChange={setMainCamera}
-                  onNodePick={(nodeId) => setSelectedNodeId(nodeId)}
-                  onFrameState={setFrameState}
-                  onInteraction={revealUi}
-                  rendererLabel={computeLabel}
-                  autoFitOnSceneChange={!mainCamera}
-                />
-              ) : (
-                <SvgViewport
-                  className={cinema ? 'h-[calc(100%-1.75rem)] min-h-[62vh] rounded-2xl border-white/20 bg-black/80' : 'h-[72vh] rounded-2xl border-white/20 bg-black/80'}
-                  graph={activeBundle.graph}
-                  showLabels={clampedControls.showLabels}
-                  highlightWitnessEdges={showWitnessSet}
-                  highlightBridges={showBridgeSet}
-                  highlightArticulations={showArticulationSet}
-                />
-              )
-            ) : null}
-
-            {sampleState.status === 'ready' && clampedControls.compare ? (
-              <CompareLayout
-                panels={comparePanels}
-                renderer={clampedControls.renderer}
-                syncCamera={clampedControls.syncCompareView}
-                showLabels={clampedControls.showLabels}
-                onInteraction={revealUi}
-              />
-            ) : null}
-          </div>
-        </div>
-
-        {pickedNodeInfo && headerVisible ? (
-          <div className="pointer-events-none absolute bottom-6 right-6 z-20 rounded-lg border border-white/20 bg-black/60 px-3 py-2 text-xs text-white/80 backdrop-blur">
-            node {pickedNodeInfo.id} ({pickedNodeInfo.label}) • degree {pickedNodeInfo.degree} • neighbors {pickedNodeInfo.neighbors}
           </div>
         ) : null}
 
-        <AnimatePresence>
-          {running && progress ? (
-            <motion.div
-              key={progress.stage}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="pointer-events-none absolute inset-0 z-25 flex items-center justify-center"
-            >
-              <motion.div
-                initial={{ scale: 0.94, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 1.02, opacity: 0 }}
-                className="rounded-2xl border border-white/20 bg-black/60 px-5 py-4 text-center backdrop-blur"
-              >
-                <div className="text-xs uppercase tracking-[0.2em] text-white/60">{stageLabel[progress.stage]}</div>
-                <div className="mt-1 text-sm text-white/90">{stageEffectText}</div>
-              </motion.div>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+        {sampleState.status === 'ready' && activeBundle && !clampedControls.compare ? (
+          clampedControls.renderer === 'webgl' ? (
+            <WebGLViewport
+              ref={mainViewportRef}
+              className="h-full w-full rounded-none border-0"
+              scene={activeBundle.scene}
+              bbox={activeBundle.bbox}
+              camera={mainCamera}
+              onCameraChange={setMainCamera}
+              onNodePick={(nodeId) => setSelectedNodeId(nodeId)}
+              onFrameState={setFrameState}
+              onInteraction={revealUi}
+              rendererLabel={computeLabel}
+              autoFitOnSceneChange
+            />
+          ) : (
+            <SvgViewport
+              className="h-full w-full rounded-none border-0 bg-black"
+              graph={activeBundle.graph}
+              showLabels={clampedControls.showLabels}
+              highlightWitnessEdges={showWitnessSet}
+              highlightBridges={showBridgesSet}
+              highlightArticulations={showArticulationsSet}
+            />
+          )
+        ) : null}
 
-        {!cinema || tab === 'report' ? (
-          <div className={cinema ? 'absolute bottom-3 left-3 right-3 z-10' : ''}>
-            <Tabs value={tab} onValueChange={(value) => setTab(value as 'report' | 'raw')} className="rounded-2xl border border-white/20 bg-black/60 p-3 backdrop-blur">
-              <TabsList className="bg-white/10">
-                <TabsTrigger value="report">Report</TabsTrigger>
-                <TabsTrigger value="raw">Raw JSON</TabsTrigger>
-              </TabsList>
-              <TabsContent value="report" className="mt-3 max-h-[26vh] overflow-auto">
-                <ReportCard result={result} />
-              </TabsContent>
-              <TabsContent value="raw" className="mt-3 max-h-[26vh] overflow-auto">
-                <JsonInspector data={result ?? { status: 'no-result' }} />
-              </TabsContent>
-            </Tabs>
+        {sampleState.status === 'ready' && clampedControls.compare ? (
+          <div className="absolute inset-0 px-3 pb-3 pt-16">
+            <CompareLayout
+              panels={comparePanels}
+              renderer={clampedControls.renderer}
+              syncCamera={clampedControls.syncCompareView}
+              showLabels={clampedControls.showLabels}
+              onInteraction={revealUi}
+            />
           </div>
         ) : null}
       </div>
+
+      <HUD
+        visible={chromeVisible}
+        datasetName={dataset.name}
+        sampleLabel={sampleDef?.label ?? ''}
+        modeLabel={layoutModeForDisplay(clampedControls.mode, result?.planarity.isPlanar ?? false)}
+        stageLabel={displayStage ? STAGE_LABEL[displayStage.stage] : undefined}
+        computeLabel={computeLabel}
+        status={{ text: viewerStatus.text, tone: viewerStatus.tone }}
+        metrics={metrics}
+        timings={result?.timingsMs}
+        buildLabel={sampleDef?.precomputedFile && !result ? `${buildLabel} • precomputed asset` : buildLabel}
+        onResetView={() => mainViewportRef.current?.resetView()}
+      />
+
+      <AnimatePresence>
+        {chromeVisible ? (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="pointer-events-none fixed left-3 right-3 top-3 z-30 flex items-start justify-between"
+          >
+            <div className="pointer-events-auto mt-14 rounded-lg border border-slate-400/30 bg-slate-900/70 px-3 py-1 text-xs text-slate-200 backdrop-blur">
+              <Link className="underline" to="/gallery">Gallery</Link> / {dataset.name}
+            </div>
+            <div className="pointer-events-auto flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-label="Open controls"
+                onClick={() => setControlsOpen(true)}
+              >
+                Controls
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-label="Open report"
+                onClick={() => {
+                  setReportOpen(true);
+                  setTab('report');
+                }}
+              >
+                Report
+              </Button>
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {chromeVisible ? (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="pointer-events-auto fixed left-1/2 top-3 z-30 -translate-x-1/2"
+          >
+            <PipelineStrip activeSteps={pipelineActiveSteps} onStepClick={onPipelineStepClick} />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {displayStage && running ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="pointer-events-none fixed inset-0 z-20 flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 1.02, opacity: 0 }}
+              className="glass-panel px-5 py-4 text-center"
+            >
+              <div className="text-[11px] uppercase tracking-[0.2em] text-slate-300">{STAGE_LABEL[displayStage.stage]}</div>
+              <div className="mt-1 text-sm text-slate-100">{stageText}</div>
+              {progress?.stage === displayStage.stage && result?.timingsMs?.[displayStage.stage] ? (
+                <div className="mt-1 text-xs text-slate-300">{Math.round(result.timingsMs[displayStage.stage] ?? 0)} ms</div>
+              ) : null}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      {computeError ? (
+        <div className="fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-lg border border-red-300/35 bg-red-500/20 px-3 py-2 text-xs text-red-100">
+          {computeError.message}
+        </div>
+      ) : null}
 
       <CinemaControlsSheet
         open={controlsOpen}
@@ -1354,9 +1503,44 @@ export function GalleryViewer() {
         running={running}
         error={computeError}
         clampedWarning={clampedWarning}
+        facesAvailable={facesAvailable}
       />
 
+      <Sheet open={reportOpen} onOpenChange={setReportOpen}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[50vh] h-[46vh] w-full overflow-y-auto rounded-t-2xl border-t border-slate-400/30 p-0"
+        >
+          <div className="glass-panel-strong min-h-full rounded-none p-3">
+            <Tabs value={tab} onValueChange={(value) => setTab(value as 'report' | 'raw')}>
+              <TabsList>
+                <TabsTrigger value="report">Report</TabsTrigger>
+                <TabsTrigger value="raw">Raw JSON</TabsTrigger>
+              </TabsList>
+              <TabsContent value="report" className="mt-3 max-h-[36vh] overflow-auto pr-1">
+                <ReportCard result={result} />
+              </TabsContent>
+              <TabsContent value="raw" className="mt-3 max-h-[36vh] overflow-auto pr-1">
+                <JsonInspector data={result ?? { status: 'no-result' }} />
+              </TabsContent>
+            </Tabs>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       <AttributionModal open={attributionOpen} onOpenChange={setAttributionOpen} datasets={datasets} />
+
+      <div className="pointer-events-none fixed bottom-3 right-3 z-30 rounded-md border border-slate-400/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-300">
+        <Badge variant={viewerStatus.tone}>{viewerStatus.text}</Badge>
+      </div>
+
+      {!cinema ? (
+        <div className="pointer-events-auto fixed bottom-3 left-3 z-30">
+          <Button size="sm" variant="ghost" onClick={() => setCinema(true)}>
+            Re-enter cinema
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

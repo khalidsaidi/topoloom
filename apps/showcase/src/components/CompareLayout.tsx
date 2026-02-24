@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import type { CameraTransform, RendererSceneInput } from '@/gl/GraphRenderer';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/ui/Badge';
 import { WebGLViewport } from '@/components/viewports/WebGLViewport';
 import { SvgViewport } from '@/components/viewports/SvgViewport';
 import type { ViewportGraph } from '@/components/viewports/types';
@@ -56,7 +56,7 @@ export function CompareLayout({
             <header className="mb-1 flex flex-wrap items-center justify-between gap-2 px-1">
               <div className="text-sm font-semibold text-white">{panel.title}</div>
               <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/70">
-                <Badge variant={panel.planar ? 'secondary' : 'destructive'}>
+                <Badge variant={panel.planar ? 'success' : 'danger'}>
                   {panel.planar ? 'Planar' : 'Nonplanar'}
                 </Badge>
                 <span>crossings {panel.crossings}</span>

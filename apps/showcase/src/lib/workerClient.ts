@@ -11,23 +11,21 @@ export type WorkerStage =
 
 export type WorkerPartial =
   | {
-      kind: 'sampling';
-      visitedNodeIds: number[];
-      visitedCount: number;
+      kind: 'sample';
+      visited: number[];
     }
   | {
       kind: 'witness';
-      witness: {
-        kind: 'K5' | 'K33' | 'unknown';
-        edgePairs: [number, number][];
-      };
+      witnessKind: 'K5' | 'K33' | 'unknown';
+      edges: [number, number][];
     }
   | {
       kind: 'faces';
-      faces: {
-        count: number;
-        sizes: number[];
-      };
+      faceSizes: number[];
+    }
+  | {
+      kind: 'layoutTarget';
+      positions: Array<[number, number, number]>;
     };
 
 export type WorkerComputePayload = {

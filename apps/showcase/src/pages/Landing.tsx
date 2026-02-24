@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import type { CameraTransform, RendererSceneInput } from '@/gl/GraphRenderer';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/ui/Button';
+import { Badge } from '@/ui/Badge';
+import { Slider } from '@/ui/Slider';
 import { PipelineStrip } from '@/components/PipelineStrip';
 import { WebGLViewport } from '@/components/viewports/WebGLViewport';
 
@@ -228,14 +229,12 @@ export function Landing() {
             </div>
 
             <div className="absolute bottom-8 left-1/2 z-10 w-[min(90vw,460px)] -translate-x-1/2 rounded-full border border-white/25 bg-black/55 px-4 py-2 backdrop-blur">
-              <input
-                aria-label="A/B reveal slider"
-                type="range"
+              <Slider
+                ariaLabel="A/B reveal slider"
                 min={5}
                 max={95}
                 value={split}
-                onChange={(event) => setSplit(Number(event.target.value))}
-                className="w-full"
+                onValueChange={setSplit}
               />
             </div>
           </div>
@@ -255,11 +254,11 @@ export function Landing() {
 
         <div className="relative z-20 mx-auto flex h-full w-full max-w-7xl flex-col justify-between px-4 py-6 md:px-8">
           <div className="flex items-center justify-between gap-3">
-            <Badge variant="outline" className="border-white/40 bg-black/45 text-white">
+            <Badge variant="neutral" className="border-white/40 bg-black/45 text-white">
               Topology-first graph drawing kernel
             </Badge>
             <div className="flex items-center gap-2">
-              <Button asChild variant="outline" className="pointer-events-auto border-white/40 bg-black/45 text-white hover:bg-black/70">
+              <Button asChild variant="ghost" className="pointer-events-auto border-white/40 bg-black/45 text-white hover:bg-black/70">
                 <Link to="/api">API</Link>
               </Button>
             </div>
@@ -286,7 +285,7 @@ export function Landing() {
               <Button asChild size="lg">
                 <Link to="/gallery">Try Real Data Gallery</Link>
               </Button>
-              <Button asChild variant="outline" size="lg" className="border-white/40 bg-black/45 text-white hover:bg-black/70">
+              <Button asChild variant="ghost" size="lg" className="border-white/40 bg-black/45 text-white hover:bg-black/70">
                 <Link to="/demo/planarity">Explore demos</Link>
               </Button>
             </div>

@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 
 import type { CameraTransform, RendererFrameState, RendererSceneInput } from '@/gl/GraphRenderer';
 import { GraphRenderer } from '@/gl/GraphRenderer';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/ui/Button';
 import { cn } from '@/lib/utils';
 
 export type WebGLViewportHandle = {
@@ -298,8 +298,8 @@ export const WebGLViewport = forwardRef<WebGLViewportHandle, WebGLViewportProps>
       </div>
       <Button
         type="button"
-        size="xs"
-        variant="outline"
+        size="sm"
+        variant="ghost"
         className="absolute right-3 top-3 border-white/30 bg-black/55 text-white hover:bg-black/70"
         onClick={fitCurrent}
       >

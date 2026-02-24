@@ -34,6 +34,7 @@ export type RendererSceneInput = {
   routeSegments?: RendererSegmentInput[];
   seed?: number;
   preview?: boolean;
+  morphDurationMs?: number;
 };
 
 export type CameraTransform = {
@@ -91,6 +92,8 @@ type DrawUniforms = {
   u_alpha?: number;
   u_routePass?: boolean;
   u_preview?: boolean;
+  u_glow?: boolean;
+  u_glowScale?: number;
 };
 
 export class GraphRenderer {
@@ -371,6 +374,7 @@ export class GraphRenderer {
     this.routeSegments = scene.routeSegments ?? [];
     this.routeCount = this.routeSegments.length;
     this.previewSeed = Math.trunc(scene.seed ?? 1);
+    this.morphDurationMs = Math.max(420, Math.min(2000, Math.floor(scene.morphDurationMs ?? 1100)));
 
     this.nodeCurrent = new Float32Array(this.nodeCount * 2);
     this.nodeTarget = new Float32Array(this.nodeCount * 2);
@@ -631,7 +635,7 @@ export class GraphRenderer {
   private drawScene(timeMs: number, width: number, height: number, camera: mat3) {
     const gl = this.gl;
     gl.viewport(0, 0, width, height);
-    gl.clearColor(0.03, 0.05, 0.1, 1);
+    gl.clearColor(0.01, 0.02, 0.05, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.setCommonGlState();
 
@@ -643,14 +647,14 @@ export class GraphRenderer {
 
     this.drawPass(this.edgeProgram, this.edgeVao, this.edgeCount, {
       ...common,
-      u_alpha: 0.92,
+      u_alpha: 1,
       u_routePass: false,
     });
 
     if (this.routeCount > 0) {
       this.drawPass(this.edgeProgram, this.routeVao, this.routeCount, {
         ...common,
-        u_alpha: Math.max(0.18, this.morph),
+        u_alpha: Math.max(0.4, this.morph),
         u_routePass: true,
       });
     }
@@ -659,6 +663,16 @@ export class GraphRenderer {
       ...common,
       u_morph: this.morph,
       u_preview: !this.finalDeterministic,
+      u_glow: true,
+      u_glowScale: 2.1,
+    });
+
+    this.drawPass(this.nodeProgram, this.nodeVao, this.nodeCount, {
+      ...common,
+      u_morph: this.morph,
+      u_preview: !this.finalDeterministic,
+      u_glow: false,
+      u_glowScale: 1,
     });
   }
 
@@ -735,6 +749,8 @@ export class GraphRenderer {
       u_viewport: [this.canvas.width, this.canvas.height],
       u_time: 0,
       u_morph: this.morph,
+      u_glow: false,
+      u_glowScale: 1,
     });
 
     const x = Math.max(0, Math.min(this.canvas.width - 1, Math.floor(localX * this.dpr)));
