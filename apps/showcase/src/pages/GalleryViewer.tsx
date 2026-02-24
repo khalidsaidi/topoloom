@@ -146,38 +146,6 @@ function computeBBox(points: Array<{ x: number; y: number }>) {
   return { minX, minY, maxX, maxY };
 }
 
-function computeViewportBBox(
-  points: Array<{ x: number; y: number }>,
-  fallback: { minX: number; minY: number; maxX: number; maxY: number },
-) {
-  if (points.length < 8) return computeBBox(points.length > 0 ? points : [
-    { x: fallback.minX, y: fallback.minY },
-    { x: fallback.maxX, y: fallback.maxY },
-  ]);
-
-  const xs = points.map((p) => p.x).sort((a, b) => a - b);
-  const ys = points.map((p) => p.y).sort((a, b) => a - b);
-  const q = (values: number[], t: number) => {
-    const idx = Math.max(0, Math.min(values.length - 1, Math.floor((values.length - 1) * t)));
-    return values[idx] ?? 0;
-  };
-
-  const minX = q(xs, 0.02);
-  const maxX = q(xs, 0.98);
-  const minY = q(ys, 0.02);
-  const maxY = q(ys, 0.98);
-
-  if (!Number.isFinite(minX) || !Number.isFinite(maxX) || !Number.isFinite(minY) || !Number.isFinite(maxY)) {
-    return fallback;
-  }
-
-  if (maxX - minX < 1e-6 || maxY - minY < 1e-6) {
-    return fallback;
-  }
-
-  return { minX, minY, maxX, maxY };
-}
-
 function buildDegrees(nodeCount: number, edges: Array<[number, number]>) {
   const degrees = new Array(nodeCount).fill(0);
   for (const [u, v] of edges) {
@@ -339,9 +307,14 @@ function buildSceneAndGraph(args: {
     bbox: layout.bbox,
   };
 
-  const viewportBbox = computeViewportBBox(
-    graph.nodes.map((node) => ({ x: node.x, y: node.y })),
-    layout.bbox,
+  const allPoints = [
+    ...graph.nodes.map((node) => ({ x: node.x, y: node.y })),
+    ...graph.edges.flatMap((edge) => edge.points.map((point) => ({ x: point.x, y: point.y }))),
+  ];
+  const viewportBbox = computeBBox(
+    allPoints.length > 0
+      ? allPoints
+      : [{ x: layout.bbox.minX, y: layout.bbox.minY }, { x: layout.bbox.maxX, y: layout.bbox.maxY }],
   );
 
   return {
@@ -1332,6 +1305,19 @@ export function GalleryViewer() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [clampedControls.renderer, frameState.finalDeterministic, reducedMotion, runPhase, transitionRunPhase, updateDisplayStage]);
+
+  useEffect(() => {
+    if (runPhase !== 'IDLE_FINAL') return;
+    if (!result) return;
+    if (clampedControls.compare || clampedControls.renderer !== 'webgl') return;
+    const frame = window.requestAnimationFrame(() => {
+      mainViewportRef.current?.resetView();
+      window.requestAnimationFrame(() => {
+        mainViewportRef.current?.resetView();
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [clampedControls.compare, clampedControls.renderer, result, runPhase]);
 
   const selectedGraph = activeBundle?.graph ?? null;
 
