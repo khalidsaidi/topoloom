@@ -19,6 +19,7 @@ export type DatasetDef = {
     id: string;
     label: string;
     file: string;
+    precomputedFile?: string;
     stats?: { nodes: number; edges: number };
     recommended: {
       mode: DatasetMode;
@@ -116,6 +117,7 @@ export const datasets: DatasetDef[] = [
         id: 'bfs-340-s23',
         label: 'BFS 340 (seed 23)',
         file: '/datasets/roadnet-ca-bfs-340-s23.json',
+        precomputedFile: '/datasets/roadnet-ca-bfs-340-s23-layout.json',
         stats: { nodes: 340, edges: 455 },
         recommended: {
           mode: 'orthogonal',

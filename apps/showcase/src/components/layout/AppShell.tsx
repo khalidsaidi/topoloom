@@ -15,13 +15,21 @@ export type AppShellProps = {
 };
 
 export function AppShell({ children }: AppShellProps) {
-  const { search } = useLocation();
+  const { search, pathname } = useLocation();
   const { embed } = readDemoQuery(search);
+  const isCinemaRoute = pathname === '/' || pathname.startsWith('/gallery/');
+  const useImmersiveShell = !embed && isCinemaRoute;
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc_0%,_#eef2ff_45%,_#e2e8f0_100%)]">
-      <div className={`mx-auto flex min-h-screen w-full flex-col pb-12 pt-6 ${embed ? 'max-w-6xl px-4' : 'max-w-7xl px-4'}`}>
-        {!embed && (
+    <div className={useImmersiveShell ? 'min-h-screen bg-black text-white' : 'min-h-screen bg-[radial-gradient(circle_at_top,_#f8fafc_0%,_#eef2ff_45%,_#e2e8f0_100%)]'}>
+      <div
+        className={
+          useImmersiveShell
+            ? 'flex min-h-screen w-full flex-col'
+            : `mx-auto flex min-h-screen w-full flex-col pb-12 pt-6 ${embed ? 'max-w-6xl px-4' : 'max-w-7xl px-4'}`
+        }
+      >
+        {!embed && !useImmersiveShell && (
           <header className="flex items-center justify-between gap-4 pb-6">
             <div className="space-y-1">
               <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
@@ -44,8 +52,14 @@ export function AppShell({ children }: AppShellProps) {
           </header>
         )}
 
-        <div className={`grid flex-1 gap-8 ${embed ? 'grid-cols-1' : 'lg:grid-cols-[260px_minmax(0,_1fr)]'}`}>
-          {!embed && (
+        <div
+          className={
+            useImmersiveShell
+              ? 'flex-1'
+              : `grid flex-1 gap-8 ${embed ? 'grid-cols-1' : 'lg:grid-cols-[260px_minmax(0,_1fr)]'}`
+          }
+        >
+          {!embed && !useImmersiveShell && (
             <aside className="hidden rounded-2xl border bg-background/80 p-5 shadow-sm lg:block">
               <ScrollArea className="h-[calc(100vh-8rem)] pr-3">
                 <NavList />
@@ -53,7 +67,7 @@ export function AppShell({ children }: AppShellProps) {
             </aside>
           )}
 
-          <main className={embed ? 'space-y-4' : 'space-y-8'}>{children}</main>
+          <main className={useImmersiveShell ? 'h-full' : embed ? 'space-y-4' : 'space-y-8'}>{children}</main>
         </div>
         <BuildFooter />
       </div>

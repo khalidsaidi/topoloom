@@ -9,6 +9,27 @@ export type WorkerStage =
   | 'report'
   | 'serialize';
 
+export type WorkerPartial =
+  | {
+      kind: 'sampling';
+      visitedNodeIds: number[];
+      visitedCount: number;
+    }
+  | {
+      kind: 'witness';
+      witness: {
+        kind: 'K5' | 'K33' | 'unknown';
+        edgePairs: [number, number][];
+      };
+    }
+  | {
+      kind: 'faces';
+      faces: {
+        count: number;
+        sizes: number[];
+      };
+    };
+
 export type WorkerComputePayload = {
   datasetId: string;
   sampleId: string;
@@ -75,6 +96,11 @@ type WorkerResponseMessage =
       detail?: string;
     }
   | {
+      type: 'partial';
+      requestId: string;
+      partial: WorkerPartial;
+    }
+  | {
       type: 'result';
       requestId: string;
       result: WorkerResult;
@@ -89,6 +115,7 @@ type PendingRequest = {
   resolve: (result: WorkerResult) => void;
   reject: (error: Error) => void;
   onProgress?: (progress: { stage: WorkerStage; detail?: string }) => void;
+  onPartial?: (partial: WorkerPartial) => void;
   cleanupAbort?: () => void;
 };
 
@@ -124,6 +151,11 @@ export class TopoloomWorkerClient {
         return;
       }
 
+      if (message.type === 'partial') {
+        entry.onPartial?.(message.partial);
+        return;
+      }
+
       if (message.type === 'result') {
         entry.cleanupAbort?.();
         this.pending.delete(message.requestId);
@@ -152,6 +184,7 @@ export class TopoloomWorkerClient {
     payload: WorkerComputePayload,
     options: {
       onProgress?: (progress: { stage: WorkerStage; detail?: string }) => void;
+      onPartial?: (partial: WorkerPartial) => void;
       signal?: AbortSignal;
     } = {},
   ): Promise<WorkerResult> {
@@ -162,6 +195,7 @@ export class TopoloomWorkerClient {
         resolve,
         reject,
         onProgress: options.onProgress,
+        onPartial: options.onPartial,
       });
 
       if (options.signal) {

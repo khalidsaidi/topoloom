@@ -13,6 +13,7 @@
     "smoke:live": "node ../../scripts/smoke-live.mjs https://topoloom.web.app"
   },
   "dependencies": {
+    "@khalidsaidi/topoloom": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-scroll-area": "^1.2.10",
@@ -23,6 +24,8 @@
     "@tailwindcss/vite": "^4.1.18",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.34.3",
+    "gl-matrix": "^3.4.4",
     "lucide-react": "^0.563.0",
     "next-themes": "^0.4.6",
     "react": "^19.2.0",
@@ -31,7 +34,8 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.18",
-    "@khalidsaidi/topoloom": "workspace:*"
+    "twgl.js": "^7.0.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

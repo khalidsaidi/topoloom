@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export type DatasetJsonMeta = {
   id: string;
   name: string;
@@ -31,66 +33,57 @@ const clampCoordinate = (value: number) => {
   return value;
 };
 
-function ensureStringField(record: Record<string, unknown>, key: string): string {
-  const value = record[key];
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new Error(`Missing or invalid meta.${key}`);
-  }
-  return value;
-}
+const metaSchema = z.object({
+  id: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  sourceUrl: z.string().trim().url(),
+  licenseName: z.string().trim().min(1),
+  licenseUrl: z.string().trim().url(),
+  attribution: z.string().trim().min(1),
+  note: z.string().trim().min(1),
+});
+
+const rawDatasetSchema = z.object({
+  meta: metaSchema,
+  nodes: z.array(z.union([z.string(), z.number()])),
+  edges: z.array(z.tuple([z.coerce.number(), z.coerce.number()])),
+  extras: z
+    .object({
+      geographic: z
+        .object({
+          x: z.array(z.coerce.number()),
+          y: z.array(z.coerce.number()),
+        })
+        .optional(),
+    })
+    .optional(),
+});
 
 function normalizeEdge(u: number, v: number): [number, number] {
   return u < v ? [u, v] : [v, u];
 }
 
-export function validateDatasetJson(raw: unknown): DatasetJson {
-  if (!raw || typeof raw !== 'object') {
-    throw new Error('Dataset payload is not an object');
-  }
-
-  const record = raw as Record<string, unknown>;
-  const rawMeta = record.meta;
-  if (!rawMeta || typeof rawMeta !== 'object') {
-    throw new Error('Dataset meta section is missing');
-  }
-
-  const metaRecord = rawMeta as Record<string, unknown>;
-  const meta: DatasetJsonMeta = {
-    id: ensureStringField(metaRecord, 'id'),
-    name: ensureStringField(metaRecord, 'name'),
-    sourceUrl: ensureStringField(metaRecord, 'sourceUrl'),
-    licenseName: ensureStringField(metaRecord, 'licenseName'),
-    licenseUrl: ensureStringField(metaRecord, 'licenseUrl'),
-    attribution: ensureStringField(metaRecord, 'attribution'),
-    note: ensureStringField(metaRecord, 'note'),
-  };
-
-  const rawNodes = record.nodes;
-  if (!Array.isArray(rawNodes)) {
-    throw new Error('Dataset nodes must be an array');
-  }
-  const nodes = rawNodes.map((value, index) => {
-    if (typeof value === 'string') return value;
-    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+function parseDataset(raw: unknown): DatasetJson {
+  const parsed = rawDatasetSchema.parse(raw);
+  const nodes = parsed.nodes.map((value, index) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) return trimmed;
+      throw new Error(`Dataset nodes[${index}] is empty`);
+    }
+    if (Number.isFinite(value)) return String(value);
     throw new Error(`Dataset nodes[${index}] is not a valid node label`);
   });
-
-  const rawEdges = record.edges;
-  if (!Array.isArray(rawEdges)) {
-    throw new Error('Dataset edges must be an array');
-  }
 
   const edgeKeys = new Set<string>();
   const edges: Array<[number, number]> = [];
 
-  for (let i = 0; i < rawEdges.length; i += 1) {
-    const edge = rawEdges[i];
-    if (!Array.isArray(edge) || edge.length < 2) {
-      throw new Error(`Dataset edges[${i}] is malformed`);
-    }
-    const u = Number(edge[0]);
-    const v = Number(edge[1]);
-    if (!Number.isInteger(u) || !Number.isInteger(v)) {
+  for (let i = 0; i < parsed.edges.length; i += 1) {
+    const [uRaw, vRaw] = parsed.edges[i];
+    const u = Math.trunc(uRaw);
+    const v = Math.trunc(vRaw);
+
+    if (!Number.isFinite(uRaw) || !Number.isFinite(vRaw) || uRaw !== u || vRaw !== v) {
       throw new Error(`Dataset edges[${i}] endpoints must be integers`);
     }
     if (u < 0 || u >= nodes.length || v < 0 || v >= nodes.length) {
@@ -99,6 +92,7 @@ export function validateDatasetJson(raw: unknown): DatasetJson {
     if (u === v) {
       throw new Error(`Dataset edges[${i}] contains a self-loop (${u}, ${v})`);
     }
+
     const [a, b] = normalizeEdge(u, v);
     const key = `${a},${b}`;
     if (edgeKeys.has(key)) continue;
@@ -111,47 +105,47 @@ export function validateDatasetJson(raw: unknown): DatasetJson {
     return a[1] - b[1];
   });
 
-  const extras = record.extras;
   let geographic: DatasetGeographic | undefined;
-
-  if (extras && typeof extras === 'object') {
-    const geo = (extras as Record<string, unknown>).geographic;
-    if (geo !== undefined) {
-      if (!geo || typeof geo !== 'object') {
-        throw new Error('Dataset extras.geographic must be an object');
-      }
-      const g = geo as Record<string, unknown>;
-      if (!Array.isArray(g.x) || !Array.isArray(g.y)) {
-        throw new Error('Dataset extras.geographic must have x/y arrays');
-      }
-      if (g.x.length !== nodes.length || g.y.length !== nodes.length) {
-        throw new Error('Dataset extras.geographic arrays must match node count');
-      }
-      geographic = {
-        x: g.x.map((value, index) => {
-          const n = Number(value);
-          if (!Number.isFinite(n)) {
-            throw new Error(`Dataset extras.geographic.x[${index}] is not finite`);
-          }
-          return clampCoordinate(n);
-        }),
-        y: g.y.map((value, index) => {
-          const n = Number(value);
-          if (!Number.isFinite(n)) {
-            throw new Error(`Dataset extras.geographic.y[${index}] is not finite`);
-          }
-          return clampCoordinate(n);
-        }),
-      };
+  if (parsed.extras?.geographic) {
+    const geo = parsed.extras.geographic;
+    if (geo.x.length !== nodes.length || geo.y.length !== nodes.length) {
+      throw new Error('Dataset extras.geographic arrays must match node count');
     }
+    geographic = {
+      x: geo.x.map((value, index) => {
+        if (!Number.isFinite(value)) {
+          throw new Error(`Dataset extras.geographic.x[${index}] is not finite`);
+        }
+        return clampCoordinate(value);
+      }),
+      y: geo.y.map((value, index) => {
+        if (!Number.isFinite(value)) {
+          throw new Error(`Dataset extras.geographic.y[${index}] is not finite`);
+        }
+        return clampCoordinate(value);
+      }),
+    };
   }
 
   return {
-    meta,
+    meta: parsed.meta,
     nodes,
     edges,
     ...(geographic ? { extras: { geographic } } : {}),
   };
+}
+
+export function validateDatasetJson(raw: unknown): DatasetJson {
+  try {
+    return parseDataset(raw);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const issue = error.issues[0];
+      const path = issue?.path.length ? issue.path.join('.') : 'dataset';
+      throw new Error(`Missing or invalid ${path}: ${issue?.message ?? 'unknown error'}`);
+    }
+    throw error;
+  }
 }
 
 export async function loadDatasetSample(filePath: string): Promise<DatasetJson> {

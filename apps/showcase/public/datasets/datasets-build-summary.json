@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-24T05:21:57.258Z",
+  "generatedAt": "2026-02-24T06:40:11.940Z",
   "datasets": [
     {
       "datasetId": "power-grid",
@@ -97,6 +97,13 @@
           }
         }
       ],
+      "precomputed": {
+        "file": "roadnet-ca-bfs-340-s23-layout.json",
+        "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/roadnet-ca-bfs-340-s23-layout.json",
+        "mode": "orthogonal",
+        "crossings": 0,
+        "bends": 452
+      },
       "originalStats": {
         "nodes": 1965206,
         "edges": 2766607,

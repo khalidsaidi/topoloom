@@ -6,7 +6,7 @@ import { biconnectedComponents } from '@khalidsaidi/topoloom/dfs';
 import { spqrDecomposeSafe } from '@khalidsaidi/topoloom/decomp';
 
 import type { DatasetMode } from '@/data/datasets';
-import type { WorkerComputePayload, WorkerResult, WorkerStage } from '@/lib/workerClient';
+import type { WorkerComputePayload, WorkerPartial, WorkerResult, WorkerStage } from '@/lib/workerClient';
 
 const HARD_NODE_CAP = 350;
 const HARD_EDGE_CAP = 1200;
@@ -31,6 +31,11 @@ type WorkerResponseMessage =
       requestId: string;
       stage: WorkerStage;
       detail?: string;
+    }
+  | {
+      type: 'partial';
+      requestId: string;
+      partial: WorkerPartial;
     }
   | {
       type: 'result';
@@ -112,6 +117,7 @@ function deterministicSample(
   seed: number,
   maxNodes: number,
   maxEdges: number,
+  onVisitBatch?: (visitedNodeIds: number[]) => void,
 ): SampleResult {
   if (nodes.length === 0) {
     return {
@@ -130,6 +136,10 @@ function deterministicSample(
 
   const visited = new Set<number>([start]);
   const queue = [start];
+  const visitedOrder = [start];
+  const batchSize = 24;
+
+  onVisitBatch?.([start]);
 
   while (queue.length > 0 && visited.size < nodeCap) {
     const current = queue.shift();
@@ -139,7 +149,15 @@ function deterministicSample(
       if (visited.has(next)) continue;
       visited.add(next);
       queue.push(next);
+      visitedOrder.push(next);
+      if (visitedOrder.length % batchSize === 0) {
+        onVisitBatch?.([...visitedOrder]);
+      }
     }
+  }
+
+  if (visitedOrder.length % batchSize !== 0) {
+    onVisitBatch?.([...visitedOrder]);
   }
 
   const selectedOriginalNodeIndices = [...visited].sort((a, b) => a - b);
@@ -200,6 +218,10 @@ function postMessageSafe(message: WorkerResponseMessage) {
 
 function postProgress(requestId: string, stage: WorkerStage, detail?: string) {
   postMessageSafe({ type: 'progress', requestId, stage, detail });
+}
+
+function postPartial(requestId: string, partial: WorkerPartial) {
+  postMessageSafe({ type: 'partial', requestId, partial });
 }
 
 function mapWitnessKind(kind: string | undefined): 'K5' | 'K33' | 'unknown' {
@@ -329,6 +351,14 @@ export async function computeWorkerResult(
       payload.settings.seed,
       payload.settings.maxNodes,
       payload.settings.maxEdges,
+      (visitedNodeIds) => {
+        checkCancelled(requestId);
+        postPartial(requestId, {
+          kind: 'sampling',
+          visitedNodeIds,
+          visitedCount: visitedNodeIds.length,
+        });
+      },
     );
   });
 
@@ -351,6 +381,23 @@ export async function computeWorkerResult(
     });
   });
 
+  if (!planarityResult.planar && payload.settings.showWitness) {
+    const witnessEdges = [...planarityResult.witness.edges]
+      .map((edgeId) => {
+        const edge = graphBundle.graph.edge(edgeId);
+        return normalizeEdge(edge.u, edge.v);
+      })
+      .sort(sortEdgeLex);
+
+    postPartial(requestId, {
+      kind: 'witness',
+      witness: {
+        kind: mapWitnessKind(planarityResult.witness.type),
+        edgePairs: witnessEdges,
+      },
+    });
+  }
+
   const embeddingBundle = await trackStage('embedding', 'building embedding + face mesh', () => {
     if (!planarityResult.planar) {
       return {
@@ -361,13 +408,19 @@ export async function computeWorkerResult(
 
     const mesh = buildHalfEdgeMesh(graphBundle.graph, planarityResult.embedding);
     const sizes = mesh.faces.map((cycle) => cycle.length).sort((a, b) => a - b);
+    const faces = {
+      count: mesh.faces.length,
+      sizes,
+    };
+
+    postPartial(requestId, {
+      kind: 'faces',
+      faces,
+    });
 
     return {
       mesh,
-      faces: {
-        count: mesh.faces.length,
-        sizes,
-      },
+      faces,
     };
   });
 
