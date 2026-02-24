@@ -1,73 +1,33 @@
-# React + TypeScript + Vite
+# TopoLoom Showcase
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+`apps/showcase` is a Vite + React Router + Tailwind v4 + Radix UI SPA for TopoLoom demos and the Real-World Graph Gallery.
 
-Currently, two official plugins are available:
+## Commands
+- Dev: `pnpm -C apps/showcase dev`
+- Build: `pnpm -C apps/showcase build`
+- Preview: `pnpm -C apps/showcase preview`
+- Tests: `pnpm -C apps/showcase test`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+From repo root:
+- Regenerate curated gallery datasets: `pnpm datasets:build`
 
-## React Compiler
+## Manual smoke checklist
+- Landing hero renders the split-view before/after instantly.
+- Landing CTAs are:
+  - `Try Real Data Gallery` -> `/gallery`
+  - `Explore demos` -> `/demo/planarity`
+  - `API` -> `/api`
+- Gallery index loads all curated datasets and “Why it’s hard” bullets.
+- Dataset viewer runs worker compute without freezing UI.
+- Worker progress appears during runs and report card updates after completion.
+- Compare mode shows multi-panel outputs and sync pan/zoom works.
+- Copy share link reproduces the current state from URL params.
+- PNG export downloads and includes legend.
+- SVG export downloads and opens as a standalone SVG.
+- `/api` route still works.
+- `apps/showcase/index.html` still includes:
+  - `<meta name="topoloom-smoke" content="1" />`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Attribution note
+OpenStreetMap attribution string used in the UI:
+- `© OpenStreetMap contributors, ODbL 1.0`

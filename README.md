@@ -41,6 +41,30 @@ if (result.planar) {
 ## Showcase
 Live demo: https://topoloom.web.app
 
+## Showcase site
+- Run locally: `pnpm -C apps/showcase dev`
+- Build: `pnpm -C apps/showcase build`
+- Regenerate curated gallery datasets: `pnpm datasets:build`
+
+The showcase is a Vite + React Router + Tailwind v4 + Radix SPA deployed to Firebase Hosting (`apps/showcase/dist`) with SPA rewrites enabled.
+
+## Dataset attribution
+- Power Grid Network
+  - Source: https://datarepository.wolframcloud.com/resources/Power-Grid-Network
+  - License/terms: https://www.wolfram.com/legal/terms/wolfram-cloud.html
+- SNAP roadNet-CA
+  - Source: https://snap.stanford.edu/data/roadNet-CA.html
+  - Terms: https://snap.stanford.edu/data/roadNet-CA.html
+- Graph Drawing BU4P benchmarks
+  - Source + terms: https://graphdrawing.unipg.it/data.html
+- SuiteSparse Hamm (add20, add32)
+  - Source: https://sparse.tamu.edu/Hamm
+  - Terms: https://sparse.tamu.edu/about
+- OpenStreetMap downtown extract
+  - Source: https://www.openstreetmap.org
+  - License: https://opendatacommons.org/licenses/odbl/
+  - Attribution string used in UI: `© OpenStreetMap contributors, ODbL 1.0`
+
 ## Philosophy
 **Topology first, geometry second.** Layout pipelines should not recompute planarity or embeddings if the kernel already provides them.
 
