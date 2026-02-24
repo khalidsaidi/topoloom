@@ -81,8 +81,12 @@ export const WebGLViewport = forwardRef<WebGLViewportHandle, WebGLViewportProps>
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<GraphRenderer | null>(null);
+  const pendingRefitRef = useRef(false);
 
-  const [size, setSize] = useState({ width: 640, height: 420 });
+  const [size, setSize] = useState(() => ({
+    width: Math.max(1, typeof window === 'undefined' ? 640 : window.innerWidth),
+    height: Math.max(1, typeof window === 'undefined' ? 420 : window.innerHeight),
+  }));
   const [internalCamera, setInternalCamera] = useState<CameraTransform>(() =>
     fitCameraToBbox(bbox, 640, 420),
   );
@@ -162,9 +166,16 @@ export const WebGLViewport = forwardRef<WebGLViewportHandle, WebGLViewportProps>
       };
       setSize(next);
       rendererRef.current?.resize(next.width, next.height, window.devicePixelRatio || 1);
+      if (pendingRefitRef.current) {
+        window.requestAnimationFrame(() => {
+          fitCurrent();
+          pendingRefitRef.current = false;
+        });
+      }
     });
     observer.observe(wrapper);
     return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -186,7 +197,10 @@ export const WebGLViewport = forwardRef<WebGLViewportHandle, WebGLViewportProps>
 
   useEffect(() => {
     if (fitSignal === undefined) return;
+    pendingRefitRef.current = true;
     fitCurrent();
+    window.requestAnimationFrame(() => fitCurrent());
+    window.setTimeout(() => fitCurrent(), 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitSignal]);
 
