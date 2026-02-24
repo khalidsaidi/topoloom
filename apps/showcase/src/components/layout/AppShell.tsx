@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { NavList } from '@/components/layout/NavList';
+import { BuildFooter } from '@/components/layout/BuildFooter';
 import { Toaster } from '@/components/ui/sonner';
 import { readDemoQuery } from '@/lib/demoQuery';
 
@@ -54,6 +55,7 @@ export function AppShell({ children }: AppShellProps) {
 
           <main className={embed ? 'space-y-4' : 'space-y-8'}>{children}</main>
         </div>
+        <BuildFooter />
       </div>
       <Toaster />
     </div>

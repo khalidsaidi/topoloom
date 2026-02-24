@@ -45,6 +45,12 @@ const OrthogonalFlowConcept = lazy(() =>
   import('@/pages/concepts/OrthogonalFlow').then((m) => ({ default: m.OrthogonalFlowConcept })),
 );
 const Api = lazy(() => import('@/pages/Api').then((m) => ({ default: m.Api })));
+const GalleryIndex = lazy(() =>
+  import('@/pages/GalleryIndex').then((m) => ({ default: m.GalleryIndex })),
+);
+const GalleryViewer = lazy(() =>
+  import('@/pages/GalleryViewer').then((m) => ({ default: m.GalleryViewer })),
+);
 
 export default function App() {
   return (
@@ -82,6 +88,8 @@ export default function App() {
             <Route path="/concepts/bc-spqr" element={<BCSPQRConcept />} />
             <Route path="/concepts/dual-routing" element={<DualRoutingConcept />} />
             <Route path="/concepts/orthogonal-flow" element={<OrthogonalFlowConcept />} />
+            <Route path="/gallery" element={<GalleryIndex />} />
+            <Route path="/gallery/:datasetId" element={<GalleryViewer />} />
             <Route path="/api" element={<Api />} />
           </Routes>
         </Suspense>

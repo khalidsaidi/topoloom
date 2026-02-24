@@ -8,7 +8,7 @@
     "build": "node ../../scripts/write-build-info.mjs && tsc -b && vite build",
     "lint": "eslint .",
     "typecheck": "tsc -b --pretty false",
-    "test": "echo \"showcase: no tests\"",
+    "test": "vitest run",
     "preview": "vite preview",
     "smoke:live": "node ../../scripts/smoke-live.mjs https://topoloom.web.app"
   },

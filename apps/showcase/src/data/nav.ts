@@ -19,6 +19,16 @@ export const navSections: NavSection[] = [
     ],
   },
   {
+    title: 'Real Data',
+    items: [
+      {
+        label: 'Gallery',
+        path: '/gallery',
+        description: 'Hard graphs → clean topology-first drawings.',
+      },
+    ],
+  },
+  {
     title: 'Kernel Concepts',
     items: [
       { label: 'Rotation vs Half-Edge', path: '/concepts/rotation' },
