@@ -291,7 +291,7 @@ export function Landing() {
         </div>
 
         <div className="absolute bottom-3 left-4 z-20">
-          <PipelineStrip activeSteps={['graph', 'planarity', 'embedding', 'mesh', 'layout']} />
+          <PipelineStrip activeSteps={['graph', 'planarity', 'embedding', 'mesh', 'layout', 'report']} />
         </div>
 
         {largePrecomputedHint ? (

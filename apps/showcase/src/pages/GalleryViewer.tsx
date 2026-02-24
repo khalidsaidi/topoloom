@@ -67,6 +67,18 @@ const stepToReportSection: Record<PipelineStepId, string> = {
   embedding: 'report-faces',
   mesh: 'report-faces',
   layout: 'report-timings',
+  report: 'report-timings',
+};
+
+const stageToPipelineStep: Partial<Record<WorkerStage, PipelineStepId>> = {
+  sample: 'graph',
+  'build-graph': 'graph',
+  planarity: 'planarity',
+  embedding: 'embedding',
+  mesh: 'mesh',
+  layout: 'layout',
+  report: 'report',
+  serialize: 'report',
 };
 
 type LoadState =
@@ -105,6 +117,9 @@ type WitnessPartial = Extract<WorkerPartial, { kind: 'witness' }>;
 type SamplePartial = Extract<WorkerPartial, { kind: 'sampleVisited' }>;
 type FacesPartial = Extract<WorkerPartial, { kind: 'faces' }>;
 type PositionPartial = Extract<WorkerPartial, { kind: 'positions' }>;
+type MetricPartial = Extract<WorkerPartial, { kind: 'metric' }>;
+
+type RunPhase = 'IDLE_FINAL' | 'SCRAMBLE_INTRO' | 'SOLVING_STREAM' | 'FINAL_MORPH';
 
 function edgeKey(edge: [number, number]) {
   return edge[0] < edge[1] ? `${edge[0]},${edge[1]}` : `${edge[1]},${edge[0]}`;
@@ -226,6 +241,8 @@ function buildSceneAndGraph(args: {
   visibleNodeIds?: Set<number>;
   reducedMotion: boolean;
   animateToTarget: boolean;
+  previewAnimation?: boolean;
+  edgeAlpha?: number;
 }) {
   const {
     sampledNodes,
@@ -237,14 +254,17 @@ function buildSceneAndGraph(args: {
     visibleNodeIds,
     reducedMotion,
     animateToTarget,
+    previewAnimation,
+    edgeAlpha,
   } = args;
 
   const positionsMap = new Map<number, { x: number; y: number }>(layout.positions);
   const degree = buildDegrees(sampledNodes.length, sampledEdges);
 
   const scene: RendererSceneInput = {
-    preview: !reducedMotion,
+    preview: Boolean(previewAnimation) && !reducedMotion,
     morphDurationMs: reducedMotion ? 560 : 1100,
+    edgeAlpha: edgeAlpha ?? 1,
     nodes: sampledNodes.map((label, id) => {
       const target = positionsMap.get(id) ?? scramblePositions[id] ?? { x: 0, y: 0 };
       return {
@@ -567,7 +587,10 @@ export function GalleryViewer() {
 
   useEffect(() => {
     if (!seeded) return;
-    setControls((prev) => ({ ...seeded[1], renderer: prev.renderer }));
+    const timer = window.setTimeout(() => {
+      setControls((prev) => ({ ...seeded[1], renderer: prev.renderer }));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [seeded]);
 
   const [sampleState, setSampleState] = useState<LoadState>({ status: 'idle' });
@@ -575,9 +598,10 @@ export function GalleryViewer() {
 
   const [result, setResult] = useState<WorkerResult | null>(null);
   const [compareResults, setCompareResults] = useState<Record<string, WorkerResult>>({});
-  const [running, setRunning] = useState(false);
+  const [runPhase, setRunPhase] = useState<RunPhase>('IDLE_FINAL');
   const [progress, setProgress] = useState<{ stage: WorkerStage; detail?: string } | null>(null);
   const [computeError, setComputeError] = useState<{ message: string; details?: string } | null>(null);
+  const [modeFallbackNote, setModeFallbackNote] = useState<string | null>(null);
 
   const [displayStage, setDisplayStage] = useState<{ stage: WorkerStage; detail?: string } | null>(null);
 
@@ -585,6 +609,7 @@ export function GalleryViewer() {
   const [partialWitness, setPartialWitness] = useState<WitnessPartial | null>(null);
   const [partialFaces, setPartialFaces] = useState<FacesPartial | null>(null);
   const [partialPositions, setPartialPositions] = useState<PositionPartial | null>(null);
+  const [partialMetric, setPartialMetric] = useState<MetricPartial | null>(null);
 
   const [controlsOpen, setControlsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -611,6 +636,16 @@ export function GalleryViewer() {
   const idleTimerRef = useRef<number | null>(null);
   const autoRunRef = useRef(false);
   const mainViewportRef = useRef<WebGLViewportHandle | null>(null);
+  const runPhaseRef = useRef<RunPhase>('IDLE_FINAL');
+
+  useEffect(() => {
+    runPhaseRef.current = runPhase;
+  }, [runPhase]);
+
+  const transitionRunPhase = useCallback((next: RunPhase) => {
+    runPhaseRef.current = next;
+    setRunPhase(next);
+  }, []);
 
   const sampleDef = useMemo(() => {
     if (!dataset) return null;
@@ -626,12 +661,6 @@ export function GalleryViewer() {
       maxEdges: Math.min(caps.maxEdges, dataset.limits.maxEdgesHard),
     };
   }, [controls, dataset]);
-
-  useEffect(() => {
-    if (controls.maxNodes !== clampedControls.maxNodes || controls.maxEdges !== clampedControls.maxEdges) {
-      setControls((prev) => ({ ...prev, maxNodes: clampedControls.maxNodes, maxEdges: clampedControls.maxEdges }));
-    }
-  }, [clampedControls.maxEdges, clampedControls.maxNodes, controls.maxEdges, controls.maxNodes]);
 
   const clampedWarning = useMemo(() => {
     if (controls.maxNodes !== clampedControls.maxNodes || controls.maxEdges !== clampedControls.maxEdges) {
@@ -651,14 +680,20 @@ export function GalleryViewer() {
   useEffect(() => {
     if (!sampleDef) return;
     let active = true;
-
-    setSampleState({ status: 'loading' });
-    setResult(null);
-    setCompareResults({});
-    setPartialSampleVisited([]);
-    setPartialWitness(null);
-    setPartialFaces(null);
-    setPartialPositions(null);
+    const resetTimer = window.setTimeout(() => {
+      if (!active) return;
+      setSampleState({ status: 'loading' });
+      setResult(null);
+      setCompareResults({});
+      setPrecomputedLayout(null);
+      setPartialSampleVisited([]);
+      setPartialWitness(null);
+      setPartialFaces(null);
+      setPartialPositions(null);
+      setPartialMetric(null);
+      setModeFallbackNote(null);
+      transitionRunPhase('IDLE_FINAL');
+    }, 0);
 
     loadDatasetSample(sampleDef.file)
       .then((loaded) => {
@@ -675,14 +710,12 @@ export function GalleryViewer() {
 
     return () => {
       active = false;
+      window.clearTimeout(resetTimer);
     };
-  }, [sampleDef]);
+  }, [sampleDef, transitionRunPhase]);
 
   useEffect(() => {
-    if (!sampleDef?.precomputedFile) {
-      setPrecomputedLayout(null);
-      return;
-    }
+    if (!sampleDef?.precomputedFile) return;
 
     let active = true;
     fetch(sampleDef.precomputedFile)
@@ -709,18 +742,18 @@ export function GalleryViewer() {
     if (!dataset || !sampleDef) return;
     const state: ViewerUrlState = {
       sample: sampleDef.id,
-      mode: controls.mode,
-      boundarySelection: controls.boundarySelection,
-      maxNodes: controls.maxNodes,
-      maxEdges: controls.maxEdges,
-      seed: controls.seed,
-      witness: controls.showWitness,
-      labels: controls.showLabels,
-      articulations: controls.showArticulations,
-      bridges: controls.showBridges,
-      compare: controls.compare,
-      compareModes: controls.compareModes,
-      syncCompareView: controls.syncCompareView,
+      mode: clampedControls.mode,
+      boundarySelection: clampedControls.boundarySelection,
+      maxNodes: clampedControls.maxNodes,
+      maxEdges: clampedControls.maxEdges,
+      seed: clampedControls.seed,
+      witness: clampedControls.showWitness,
+      labels: clampedControls.showLabels,
+      articulations: clampedControls.showArticulations,
+      bridges: clampedControls.showBridges,
+      compare: clampedControls.compare,
+      compareModes: clampedControls.compareModes,
+      syncCompareView: clampedControls.syncCompareView,
     };
 
     const search = serializeViewerUrlState(state);
@@ -733,7 +766,7 @@ export function GalleryViewer() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [controls, dataset, location.pathname, location.search, navigate, sampleDef]);
+  }, [clampedControls, dataset, location.pathname, location.search, navigate, sampleDef]);
 
   const revealUi = useCallback(() => {
     if (!cinema) return;
@@ -804,14 +837,15 @@ export function GalleryViewer() {
   }, [clampedControls.seed, dataset, localSample, sampleDef]);
 
   const runningVisibleSet = useMemo(() => {
-    if (!running || partialSampleVisited.length === 0) return undefined;
+    const revealBySampling = runPhase === 'SCRAMBLE_INTRO' || runPhase === 'SOLVING_STREAM';
+    if (!revealBySampling || partialSampleVisited.length === 0) return undefined;
     const sampledIds = new Set<number>();
     for (const originalId of partialSampleVisited) {
       const sampledId = originalToSampled.get(originalId);
       if (sampledId !== undefined) sampledIds.add(sampledId);
     }
     return sampledIds;
-  }, [originalToSampled, partialSampleVisited, running]);
+  }, [originalToSampled, partialSampleVisited, runPhase]);
 
   const currentSampledEdges = useMemo(() => {
     if (result) return result.sampledGraph.edges;
@@ -830,6 +864,15 @@ export function GalleryViewer() {
   }, [currentSampledEdges, selectedNodeId]);
 
   const facesAvailable = Boolean(result?.report.faces || partialFaces);
+  const hasGeographic = Boolean(sampleState.status === 'ready' && sampleState.data.extras?.geographic);
+
+  useEffect(() => {
+    if (hasGeographic || controls.boundarySelection !== 'geo-shaped') return;
+    const timer = window.setTimeout(() => {
+      setControls((prev) => (prev.boundarySelection === 'geo-shaped' ? { ...prev, boundarySelection: 'auto' } : prev));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [controls.boundarySelection, hasGeographic]);
 
   const edgeFlags = useMemo(() => {
     const map = new Map<string, number>();
@@ -854,7 +897,7 @@ export function GalleryViewer() {
     }
 
     return map;
-  }, [clampedControls.showBridges, clampedControls.showFaces, clampedControls.showWitness, currentSampledEdges, facesAvailable, partialWitness?.edges, result?.highlights.bridges, result?.highlights.witnessEdges]);
+  }, [clampedControls.showBridges, clampedControls.showFaces, clampedControls.showWitness, currentSampledEdges, facesAvailable, partialWitness, result]);
 
   const nodeFlags = useMemo(() => {
     const map = new Map<number, number>();
@@ -873,7 +916,7 @@ export function GalleryViewer() {
     }
 
     return map;
-  }, [clampedControls.showArticulations, neighborIds, result?.highlights.articulationPoints, selectedNodeId]);
+  }, [clampedControls.showArticulations, neighborIds, result, selectedNodeId]);
 
   const previewLayout = useMemo(() => {
     if (!localSample || scramblePositions.length === 0) return null;
@@ -899,6 +942,14 @@ export function GalleryViewer() {
     } satisfies WorkerResult['layout'];
   }, [localSample, partialPositions]);
 
+  const drawingClarity = useMemo(() => {
+    const crossings = partialMetric?.crossings;
+    if (!Number.isFinite(crossings)) return 1;
+    const value = crossings ?? 0;
+    const normalized = Math.min(1, Math.max(0, value / 220));
+    return 0.72 + normalized * 0.28;
+  }, [partialMetric?.crossings]);
+
   const previewBundle = useMemo(() => {
     if (!previewLayout || !localSample) return null;
     return buildSceneAndGraph({
@@ -911,6 +962,8 @@ export function GalleryViewer() {
       visibleNodeIds: runningVisibleSet,
       reducedMotion,
       animateToTarget: false,
+      previewAnimation: false,
+      edgeAlpha: 1,
     });
   }, [edgeFlags, localSample, nodeFlags, previewLayout, reducedMotion, runningVisibleSet, scramblePositions]);
 
@@ -926,8 +979,10 @@ export function GalleryViewer() {
       visibleNodeIds: runningVisibleSet,
       reducedMotion,
       animateToTarget: false,
+      previewAnimation: false,
+      edgeAlpha: drawingClarity,
     });
-  }, [edgeFlags, localSample, nodeFlags, reducedMotion, runningVisibleSet, scramblePositions, solvingLayout]);
+  }, [drawingClarity, edgeFlags, localSample, nodeFlags, reducedMotion, runningVisibleSet, scramblePositions, solvingLayout]);
 
   const solveStartPositions = useMemo(() => {
     if (!solvingLayout) return scramblePositions;
@@ -945,6 +1000,8 @@ export function GalleryViewer() {
       edgeFlags,
       reducedMotion,
       animateToTarget: false,
+      previewAnimation: false,
+      edgeAlpha: 0.95,
     });
   }, [edgeFlags, localSample, nodeFlags, precomputedLayout, reducedMotion]);
 
@@ -959,10 +1016,13 @@ export function GalleryViewer() {
       edgeFlags,
       reducedMotion,
       animateToTarget: true,
+      previewAnimation: false,
+      edgeAlpha: runPhase === 'FINAL_MORPH' ? 0.98 : 0.92,
     });
-  }, [edgeFlags, nodeFlags, reducedMotion, result, solveStartPositions]);
+  }, [edgeFlags, nodeFlags, reducedMotion, result, runPhase, solveStartPositions]);
 
-  const activeBundle = resultBundle ?? (running ? solvingBundle ?? previewBundle : precomputedBundle ?? previewBundle);
+  const activeBundle = resultBundle
+    ?? (runPhase === 'SCRAMBLE_INTRO' || runPhase === 'SOLVING_STREAM' ? solvingBundle ?? previewBundle : precomputedBundle ?? previewBundle);
 
   const comparePanels = useMemo(() => {
     if (!clampedControls.compare || sampleState.status !== 'ready' || !result) return [] as CompareModePanel[];
@@ -988,6 +1048,8 @@ export function GalleryViewer() {
           edgeFlags,
           reducedMotion,
           animateToTarget: true,
+          previewAnimation: false,
+          edgeAlpha: 0.95,
         });
 
         return {
@@ -1036,10 +1098,11 @@ export function GalleryViewer() {
     const abort = new AbortController();
     abortRef.current = abort;
 
-    setRunning(true);
+    transitionRunPhase('SCRAMBLE_INTRO');
     setResult(null);
     setCompareResults({});
     setComputeError(null);
+    setModeFallbackNote(null);
     setProgress({ stage: 'sample', detail: 'deterministic BFS sampling' });
     updateDisplayStage({ stage: 'sample', detail: 'deterministic BFS sampling' });
 
@@ -1047,6 +1110,7 @@ export function GalleryViewer() {
     setPartialWitness(null);
     setPartialFaces(null);
     setPartialPositions(null);
+    setPartialMetric(null);
     setSelectedNodeId(null);
     setMainCamera(undefined);
     setFitSignal((prev) => prev + 1);
@@ -1063,6 +1127,7 @@ export function GalleryViewer() {
         sampleId: sampleDef.id,
         nodes: sampleState.data.nodes,
         edges: sampleState.data.edges,
+        geographic: sampleState.data.extras?.geographic,
         settings: {
           mode,
           boundarySelection: clampedControls.boundarySelection,
@@ -1077,8 +1142,11 @@ export function GalleryViewer() {
       return client.compute(payload, {
         signal: abort.signal,
         onProgress: (next) => {
+          if (next.stage === 'report' && runPhaseRef.current !== 'FINAL_MORPH' && runPhaseRef.current !== 'IDLE_FINAL') {
+            return;
+          }
           setProgress(next);
-          if (next.stage !== 'build-graph' && next.stage !== 'serialize') {
+          if (next.stage !== 'build-graph' && next.stage !== 'serialize' && next.stage !== 'report') {
             updateDisplayStage(next);
           }
         },
@@ -1097,11 +1165,16 @@ export function GalleryViewer() {
                 setPartialFaces(partial as FacesPartial);
                 return;
               }
+              if (partial.kind === 'metric') {
+                setPartialMetric(partial as MetricPartial);
+                return;
+              }
               if (partial.kind === 'positions') {
                 const positionPartial = partial as PositionPartial;
                 setPartialPositions((previous) => {
                   if (!previous) {
                     setFitSignal((prev) => prev + 1);
+                    transitionRunPhase('SOLVING_STREAM');
                   }
                   return positionPartial;
                 });
@@ -1123,10 +1196,25 @@ export function GalleryViewer() {
       }
 
       setResult(primary);
+      transitionRunPhase('FINAL_MORPH');
       setFitSignal((prev) => prev + 1);
+      setPartialMetric({
+        kind: 'metric',
+        crossings: primary.planarity.isPlanar && primary.layout.mode === 'planar-straight'
+          ? 0
+          : Math.max(0, Number(primary.layout.crossings ?? 0)),
+        residual: 0,
+      });
+
+      const actualPrimaryMode = (primary.layout.mode as DatasetMode) ?? clampedControls.mode;
+      if (actualPrimaryMode !== clampedControls.mode) {
+        setModeFallbackNote(`Selected ${clampedControls.mode} not possible -> using ${actualPrimaryMode}`);
+      } else {
+        setModeFallbackNote(null);
+      }
 
       const compareMap: Record<string, WorkerResult> = {
-        [clampedControls.mode]: primary,
+        [actualPrimaryMode]: primary,
       };
 
       if (clampedControls.compare) {
@@ -1146,32 +1234,53 @@ export function GalleryViewer() {
       }
 
       setCompareResults(compareMap);
-      setProgress({ stage: 'report', detail: 'report ready' });
-      updateDisplayStage({ stage: 'report', detail: 'report ready' });
-      window.setTimeout(() => {
-        setDisplayStage(null);
-      }, 350);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const details = error instanceof Error ? error.stack : undefined;
       setComputeError({ message: 'Compute failed', details: `${message}\n${details ?? ''}`.trim() });
-    } finally {
-      setRunning(false);
+      transitionRunPhase('IDLE_FINAL');
+      setDisplayStage(null);
     }
-  }, [clampedControls, dataset, reducedMotion, revealUi, sampleDef, sampleState, updateDisplayStage]);
+  }, [clampedControls, dataset, reducedMotion, revealUi, sampleDef, sampleState, transitionRunPhase, updateDisplayStage]);
 
   useEffect(() => {
     if (sampleState.status !== 'ready') return;
     if (autoRunRef.current) return;
     autoRunRef.current = true;
-    void runCompute();
+    const timer = window.setTimeout(() => {
+      void runCompute();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [runCompute, sampleState.status]);
 
   useEffect(() => {
     autoRunRef.current = false;
   }, [datasetId, sampleDef?.id]);
 
+  useEffect(() => {
+    if (runPhase !== 'FINAL_MORPH') return;
+    const finish = () => {
+      transitionRunPhase('IDLE_FINAL');
+      setProgress({ stage: 'report', detail: 'report ready' });
+      updateDisplayStage({ stage: 'report', detail: 'report ready' });
+      window.setTimeout(() => setDisplayStage(null), 520);
+    };
+    if (clampedControls.renderer === 'svg') {
+      const timer = window.setTimeout(() => {
+        finish();
+      }, 920);
+      return () => window.clearTimeout(timer);
+    }
+    if (!frameState.finalDeterministic && !reducedMotion) return;
+    const timer = window.setTimeout(() => {
+      finish();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [clampedControls.renderer, frameState.finalDeterministic, reducedMotion, runPhase, transitionRunPhase, updateDisplayStage]);
+
   const selectedGraph = activeBundle?.graph ?? null;
+
+  const actualMode = (result?.layout.mode as DatasetMode | undefined) ?? clampedControls.mode;
 
   const viewerStatus = useMemo(() => deriveStatus(result, clampedControls.mode, partialWitness), [clampedControls.mode, partialWitness, result]);
 
@@ -1179,24 +1288,26 @@ export function GalleryViewer() {
     if (!clampedControls.showWitness) return undefined;
     const edges = result?.highlights.witnessEdges ?? partialWitness?.edges ?? [];
     return new Set(edges.map((edge) => edgeKey(edge)));
-  }, [clampedControls.showWitness, partialWitness?.edges, result?.highlights.witnessEdges]);
+  }, [clampedControls.showWitness, partialWitness, result]);
 
   const showBridgesSet = useMemo(() => {
     if (!clampedControls.showBridges || !result?.highlights.bridges) return undefined;
     return new Set(result.highlights.bridges.map((edge) => edgeKey(edge)));
-  }, [clampedControls.showBridges, result?.highlights.bridges]);
+  }, [clampedControls.showBridges, result]);
 
   const showArticulationsSet = useMemo(() => {
     if (!clampedControls.showArticulations || !result?.highlights.articulationPoints) return undefined;
     return new Set(result.highlights.articulationPoints);
-  }, [clampedControls.showArticulations, result?.highlights.articulationPoints]);
+  }, [clampedControls.showArticulations, result]);
 
   const metrics = useMemo(() => {
     if (result) {
       return {
         nodes: result.sampledStats.nodes,
         edges: result.sampledStats.edges,
-        crossings: viewerStatus.crossings,
+        crossings: runPhase === 'SOLVING_STREAM' || runPhase === 'FINAL_MORPH'
+          ? (partialMetric?.crossings ?? viewerStatus.crossings)
+          : viewerStatus.crossings,
         bends: Math.max(0, Number(result.layout.bends ?? 0)),
       };
     }
@@ -1209,15 +1320,17 @@ export function GalleryViewer() {
       };
     }
     return null;
-  }, [localSample, result, viewerStatus.crossings]);
+  }, [localSample, partialMetric?.crossings, result, runPhase, viewerStatus.crossings]);
+
+  const runBusy = runPhase !== 'IDLE_FINAL';
 
   const computeLabel = useMemo(() => {
-    if (running) return 'Solving (live)' as const;
-    if (result && (frameState.finalDeterministic || reducedMotion)) return 'Final (TopoLoom deterministic)' as const;
-    if (result && !frameState.finalDeterministic) return 'Solving (live)' as const;
-    if (precomputedLayout && !result) return 'Final (TopoLoom deterministic)' as const;
-    return 'Preview (animated)' as const;
-  }, [frameState.finalDeterministic, precomputedLayout, reducedMotion, result, running]);
+    if (runPhase === 'SCRAMBLE_INTRO') return 'Scrambled (starting…)';
+    if (runPhase === 'SOLVING_STREAM') return 'Solving (live)';
+    if (runPhase === 'FINAL_MORPH') return 'Finalizing…';
+    if (result || precomputedLayout) return 'Final (TopoLoom deterministic)';
+    return 'Preview (animated)';
+  }, [precomputedLayout, result, runPhase]);
 
   const stageText = useMemo(() => {
     if (!displayStage) return null;
@@ -1238,17 +1351,21 @@ export function GalleryViewer() {
     }
     if (displayStage.stage === 'layout') {
       const iter = partialPositions?.iter;
+      const crossings = partialMetric?.crossings;
+      if (iter && iter > 0 && Number.isFinite(crossings)) {
+        return `Untangling (iter ${iter}) • drawing crossings ${crossings}`;
+      }
       return iter && iter > 0 ? `Untangling live (iter ${iter})` : 'Untangling: scramble → deterministic layout';
     }
     if (displayStage.stage === 'report') {
       return 'Report ready';
     }
     return displayStage.detail ?? 'Serializing';
-  }, [displayStage, partialFaces, partialPositions?.iter, partialSampleVisited.length, partialWitness]);
+  }, [displayStage, partialFaces, partialMetric?.crossings, partialPositions?.iter, partialSampleVisited.length, partialWitness]);
 
   const pipelineActiveSteps = useMemo(() => {
-    if (result?.planarity.isPlanar) return ['graph', 'planarity', 'embedding', 'mesh', 'layout'] as PipelineStepId[];
-    if (result) return ['graph', 'planarity', 'layout'] as PipelineStepId[];
+    if (result?.planarity.isPlanar) return ['graph', 'planarity', 'embedding', 'mesh', 'layout', 'report'] as PipelineStepId[];
+    if (result) return ['graph', 'planarity', 'layout', 'report'] as PipelineStepId[];
     if (partialPositions) {
       return partialFaces
         ? (['graph', 'planarity', 'embedding', 'mesh', 'layout'] as PipelineStepId[])
@@ -1259,6 +1376,24 @@ export function GalleryViewer() {
     if (partialSampleVisited.length > 0) return ['graph'] as PipelineStepId[];
     return ['graph'] as PipelineStepId[];
   }, [partialFaces, partialPositions, partialSampleVisited.length, partialWitness, result]);
+
+  const pipelineCurrentStep = useMemo(() => {
+    if (runPhase === 'SCRAMBLE_INTRO') return 'graph' as PipelineStepId;
+    if (runPhase === 'SOLVING_STREAM') return 'layout' as PipelineStepId;
+    if (runPhase === 'FINAL_MORPH') return 'layout' as PipelineStepId;
+    if (runPhase === 'IDLE_FINAL' && result) return 'report' as PipelineStepId;
+    if (!displayStage) return null;
+    return stageToPipelineStep[displayStage.stage] ?? null;
+  }, [displayStage, result, runPhase]);
+
+  const pipelineCompletedSteps = useMemo(() => {
+    const order: PipelineStepId[] = ['graph', 'planarity', 'embedding', 'mesh', 'layout', 'report'];
+    const current = pipelineCurrentStep;
+    if (!current) return [] as PipelineStepId[];
+    const index = order.indexOf(current);
+    if (index <= 0) return [] as PipelineStepId[];
+    return order.slice(0, index);
+  }, [pipelineCurrentStep]);
 
   const onPipelineStepClick = (step: PipelineStepId) => {
     const id = stepToReportSection[step];
@@ -1439,10 +1574,11 @@ export function GalleryViewer() {
         visible={chromeVisible}
         datasetName={dataset.name}
         sampleLabel={sampleDef?.label ?? ''}
-        modeLabel={layoutModeForDisplay(clampedControls.mode, result?.planarity.isPlanar ?? false)}
+        modeLabel={actualMode}
         stageLabel={displayStage ? STAGE_LABEL[displayStage.stage] : undefined}
         computeLabel={computeLabel}
         status={{ text: viewerStatus.text, tone: viewerStatus.tone }}
+        modeNote={modeFallbackNote ?? undefined}
         metrics={metrics}
         timings={result?.timingsMs}
         buildLabel={sampleDef?.precomputedFile && !result ? `${buildLabel} • precomputed asset` : buildLabel}
@@ -1466,13 +1602,18 @@ export function GalleryViewer() {
             exit={{ opacity: 0, y: -6 }}
             className="pointer-events-auto fixed left-1/2 top-3 z-30 -translate-x-1/2"
           >
-            <PipelineStrip activeSteps={pipelineActiveSteps} onStepClick={onPipelineStepClick} />
+            <PipelineStrip
+              activeSteps={pipelineActiveSteps}
+              completedSteps={pipelineCompletedSteps}
+              currentStep={pipelineCurrentStep}
+              onStepClick={onPipelineStepClick}
+            />
           </motion.div>
         ) : null}
       </AnimatePresence>
 
       <AnimatePresence>
-        {displayStage && running ? (
+        {displayStage && runBusy ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1483,10 +1624,19 @@ export function GalleryViewer() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 1.02, opacity: 0 }}
-              className="glass-panel px-5 py-4 text-center"
+              className="glass-panel px-6 py-5 text-center"
             >
-              <div className="text-[11px] uppercase tracking-[0.2em] text-slate-300">{STAGE_LABEL[displayStage.stage]}</div>
+              <div className="text-[12px] uppercase tracking-[0.24em] text-cyan-200/90">{STAGE_LABEL[displayStage.stage]}</div>
+              <div className="mt-1 text-2xl font-semibold text-slate-50">LAYOUT</div>
               <div className="mt-1 text-sm text-slate-100">{stageText}</div>
+              {partialMetric ? (
+                <div className="mt-1 text-xs text-slate-200">
+                  Drawing crossings: {partialMetric.crossings}
+                  {typeof partialMetric.residual === 'number'
+                    ? ` • residual ${partialMetric.residual.toFixed(3)}`
+                    : ''}
+                </div>
+              ) : null}
               {progress?.stage === displayStage.stage && result?.timingsMs?.[displayStage.stage] ? (
                 <div className="mt-1 text-xs text-slate-300">{Math.round(result.timingsMs[displayStage.stage] ?? 0)} ms</div>
               ) : null}
@@ -1518,10 +1668,11 @@ export function GalleryViewer() {
         onExportSvg={exportSvg}
         onAttribution={() => setAttributionOpen(true)}
         progress={progress}
-        running={running}
+        running={runBusy}
         error={computeError}
         clampedWarning={clampedWarning}
         facesAvailable={facesAvailable}
+        hasGeographic={hasGeographic}
       />
 
       <Sheet open={reportOpen} onOpenChange={setReportOpen}>

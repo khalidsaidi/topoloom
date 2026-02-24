@@ -1,6 +1,6 @@
 import type { DatasetMode } from '@/data/datasets';
 
-export type BoundarySelection = 'auto' | 'largest' | 'medium' | 'small';
+export type BoundarySelection = 'auto' | 'largest' | 'medium' | 'small' | 'geo-shaped';
 
 export type WorkerStage =
   | 'sample'
@@ -30,6 +30,11 @@ export type WorkerPartial =
       kind: 'positions';
       positions: Array<[number, number, number]>;
       iter: number;
+    }
+  | {
+      kind: 'metric';
+      crossings: number;
+      residual?: number;
     };
 
 export type WorkerComputePayload = {
@@ -37,6 +42,10 @@ export type WorkerComputePayload = {
   sampleId: string;
   nodes: string[];
   edges: [number, number][];
+  geographic?: {
+    x: number[];
+    y: number[];
+  };
   settings: {
     mode: DatasetMode;
     boundarySelection: BoundarySelection;

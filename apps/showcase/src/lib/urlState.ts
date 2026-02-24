@@ -55,7 +55,7 @@ const asMode = (value: string | null, fallback: DatasetMode): DatasetMode => {
 
 const asBoundarySelection = (value: string | null, fallback: BoundarySelection): BoundarySelection => {
   if (!value) return fallback;
-  if (value === 'auto' || value === 'largest' || value === 'medium' || value === 'small') return value;
+  if (value === 'auto' || value === 'largest' || value === 'medium' || value === 'small' || value === 'geo-shaped') return value;
   return fallback;
 };
 

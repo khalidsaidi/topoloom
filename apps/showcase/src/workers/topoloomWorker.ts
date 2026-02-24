@@ -257,7 +257,7 @@ function chooseBoundaryFace(
   if (mesh.faces.length === 0) return 0;
 
   const vertexCount = Math.max(0, ...mesh.origin) + 1;
-  const target = Math.max(3, Math.sqrt(Math.max(1, vertexCount)) * 4);
+  const target = Math.max(3, Math.min(90, Math.max(18, Math.round(4 * Math.sqrt(Math.max(1, vertexCount))))));
   const low = Math.max(3, Math.floor(Math.min(20, vertexCount / 6)));
   const high = Math.max(low, Math.floor(Math.min(80, vertexCount / 2)));
 
@@ -278,12 +278,14 @@ function chooseBoundaryFace(
     return candidates.reduce((best, next) => (next.len < best.len ? next : best)).faceId;
   }
 
-  const closestToTarget = (items: typeof candidates) => {
+  const closestToTarget = (items: typeof candidates, applyHugePenalty: boolean) => {
     return items
       .slice()
       .sort((a, b) => {
-        const da = Math.abs(a.len - target);
-        const db = Math.abs(b.len - target);
+        const hugeA = applyHugePenalty && a.len > high ? (a.len - high) * 2.4 : 0;
+        const hugeB = applyHugePenalty && b.len > high ? (b.len - high) * 2.4 : 0;
+        const da = Math.abs(a.len - target) + hugeA;
+        const db = Math.abs(b.len - target) + hugeB;
         if (da !== db) return da - db;
         if (a.len !== b.len) return a.len - b.len;
         return a.faceId - b.faceId;
@@ -291,16 +293,157 @@ function chooseBoundaryFace(
   };
 
   if (strategy === 'medium') {
-    return closestToTarget(candidates);
+    return closestToTarget(candidates, false);
   }
 
   const preferred = candidates.filter((candidate) => candidate.len >= low && candidate.len <= high);
-  return closestToTarget(preferred.length > 0 ? preferred : candidates);
+  return closestToTarget(preferred.length > 0 ? preferred : candidates, true);
+}
+
+type GeographicCoords = {
+  x: number[];
+  y: number[];
+};
+
+function buildSampledGeographic(geo: WorkerComputePayload['geographic'], sampled: SampleResult): GeographicCoords | null {
+  if (!geo) return null;
+  if (!Array.isArray(geo.x) || !Array.isArray(geo.y)) return null;
+  if (geo.x.length !== geo.y.length || geo.x.length === 0) return null;
+  if (geo.x.length < Math.max(...sampled.selectedOriginalNodeIndices, 0) + 1) return null;
+
+  const x = sampled.selectedOriginalNodeIndices.map((originalId) => clampCoordinate(geo.x[originalId] ?? 0));
+  const y = sampled.selectedOriginalNodeIndices.map((originalId) => clampCoordinate(geo.y[originalId] ?? 0));
+  return { x, y };
+}
+
+function buildGeoBoundaryPlacement(boundary: number[], geo: GeographicCoords): Map<number, Point> | null {
+  if (boundary.length < 3) return null;
+  const coords = boundary.map((id) => ({
+    x: geo.x[id] ?? 0,
+    y: geo.y[id] ?? 0,
+  }));
+
+  let meanX = 0;
+  let meanY = 0;
+  for (const p of coords) {
+    meanX += p.x;
+    meanY += p.y;
+  }
+  meanX /= coords.length;
+  meanY /= coords.length;
+
+  let cxx = 0;
+  let cxy = 0;
+  let cyy = 0;
+  for (const p of coords) {
+    const dx = p.x - meanX;
+    const dy = p.y - meanY;
+    cxx += dx * dx;
+    cxy += dx * dy;
+    cyy += dy * dy;
+  }
+  cxx /= Math.max(1, coords.length - 1);
+  cxy /= Math.max(1, coords.length - 1);
+  cyy /= Math.max(1, coords.length - 1);
+
+  const trace = cxx + cyy;
+  const delta = Math.sqrt(Math.max(0, (cxx - cyy) * (cxx - cyy) + 4 * cxy * cxy));
+  const lambda1 = Math.max(1e-6, (trace + delta) / 2);
+  const lambda2 = Math.max(1e-6, (trace - delta) / 2);
+  const ratio = Math.max(0.35, Math.min(0.95, Math.sqrt(lambda2 / lambda1)));
+  const angle = 0.5 * Math.atan2(2 * cxy, cxx - cyy);
+  const e1 = { x: Math.cos(angle), y: Math.sin(angle) };
+  const e2 = { x: -Math.sin(angle), y: Math.cos(angle) };
+
+  const cumulative = new Array<number>(boundary.length).fill(0);
+  let perimeter = 0;
+  for (let i = 1; i < boundary.length; i += 1) {
+    const p1 = coords[i - 1]!;
+    const p2 = coords[i]!;
+    perimeter += Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    cumulative[i] = perimeter;
+  }
+  const closing = Math.hypot(coords[0]!.x - coords[coords.length - 1]!.x, coords[0]!.y - coords[coords.length - 1]!.y);
+  perimeter += closing;
+  if (perimeter <= 1e-6) return null;
+
+  const baseRadius = Math.max(120, boundary.length * 8);
+  const a = baseRadius;
+  const b = baseRadius * ratio;
+  const placement = new Map<number, Point>();
+  for (let i = 0; i < boundary.length; i += 1) {
+    const t = cumulative[i]! / perimeter;
+    const theta = t * Math.PI * 2;
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+    placement.set(boundary[i]!, {
+      x: a * cos * e1.x + b * sin * e2.x,
+      y: a * cos * e1.y + b * sin * e2.y,
+    });
+  }
+  return placement;
+}
+
+function buildCircleBoundaryPlacement(boundary: number[], nodeCount: number): Map<number, Point> {
+  const placement = new Map<number, Point>();
+  const radius = Math.max(120, boundary.length * 10 + Math.sqrt(Math.max(1, nodeCount)) * 10);
+  boundary.forEach((vertex, index) => {
+    const angle = (index / Math.max(1, boundary.length)) * Math.PI * 2;
+    placement.set(vertex, {
+      x: Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+    });
+  });
+  return placement;
+}
+
+function segmentCross(a: Point, b: Point, c: Point, d: Point) {
+  const orient = (p: Point, q: Point, r: Point) => {
+    const value = (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y);
+    if (Math.abs(value) < 1e-9) return 0;
+    return value > 0 ? 1 : 2;
+  };
+  const onSeg = (p: Point, q: Point, r: Point) =>
+    q.x <= Math.max(p.x, r.x) + 1e-9 &&
+    q.x + 1e-9 >= Math.min(p.x, r.x) &&
+    q.y <= Math.max(p.y, r.y) + 1e-9 &&
+    q.y + 1e-9 >= Math.min(p.y, r.y);
+
+  const o1 = orient(a, b, c);
+  const o2 = orient(a, b, d);
+  const o3 = orient(c, d, a);
+  const o4 = orient(c, d, b);
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && onSeg(a, c, b)) return true;
+  if (o2 === 0 && onSeg(a, d, b)) return true;
+  if (o3 === 0 && onSeg(c, a, d)) return true;
+  if (o4 === 0 && onSeg(c, b, d)) return true;
+  return false;
+}
+
+function countDrawingCrossings(positions: Point[], edges: Array<[number, number]>) {
+  let count = 0;
+  for (let i = 0; i < edges.length; i += 1) {
+    const [u1, v1] = edges[i]!;
+    const a = positions[u1];
+    const b = positions[v1];
+    if (!a || !b) continue;
+    for (let j = i + 1; j < edges.length; j += 1) {
+      const [u2, v2] = edges[j]!;
+      if (u1 === u2 || u1 === v2 || v1 === u2 || v1 === v2) continue;
+      const c = positions[u2];
+      const d = positions[v2];
+      if (!c || !d) continue;
+      if (segmentCross(a, b, c, d)) count += 1;
+    }
+  }
+  return count;
 }
 
 function buildLayoutFromPositions(
   mesh: ReturnType<typeof buildHalfEdgeMesh>,
   positions: Map<number, Point>,
+  drawingCrossings = 0,
 ) {
   const edges: Array<{ edge: number; points: Point[] }> = [];
   let minX = Number.POSITIVE_INFINITY;
@@ -345,7 +488,7 @@ function buildLayoutFromPositions(
     stats: {
       bends: 0,
       area: Math.max(0, maxX - minX) * Math.max(0, maxY - minY),
-      crossings: 0,
+      crossings: Math.max(0, drawingCrossings),
     },
   };
 }
@@ -373,27 +516,44 @@ async function runRelaxationSolver(args: {
   seed: number;
   nodeCount: number;
   adjacency: number[][];
+  edges: Array<[number, number]>;
   boundary: number[];
+  boundaryPlacement?: Map<number, Point> | null;
+  startPositions?: Point[];
+  iterMax: number;
+  emitEvery: number;
+  metricEvery: number;
   stream: boolean;
 }) {
-  const { requestId, datasetId, sampleId, seed, nodeCount, adjacency, boundary, stream } = args;
-  const positions = Array.from({ length: nodeCount }, (_, id) =>
-    deterministicHairballPoint(datasetId, sampleId, seed, id, nodeCount),
-  );
+  const {
+    requestId,
+    datasetId,
+    sampleId,
+    seed,
+    nodeCount,
+    adjacency,
+    edges,
+    boundary,
+    boundaryPlacement,
+    startPositions,
+    iterMax,
+    emitEvery,
+    metricEvery,
+    stream,
+  } = args;
+  const positions = startPositions
+    ? startPositions.map((point) => ({ x: point.x, y: point.y }))
+    : Array.from({ length: nodeCount }, (_, id) =>
+        deterministicHairballPoint(datasetId, sampleId, seed, id, nodeCount),
+      );
 
   const boundarySet = new Set(boundary);
-  const boundaryRadius = Math.max(120, boundary.length * 10 + Math.sqrt(Math.max(1, nodeCount)) * 10);
-  boundary.forEach((vertex, index) => {
-    const angle = (index / Math.max(1, boundary.length)) * Math.PI * 2;
-    positions[vertex] = {
-      x: Math.cos(angle) * boundaryRadius,
-      y: Math.sin(angle) * boundaryRadius,
-    };
-  });
+  const placement = boundaryPlacement ?? buildCircleBoundaryPlacement(boundary, nodeCount);
+  for (const [vertex, point] of placement.entries()) {
+    positions[vertex] = { ...point };
+  }
 
   const interior = Array.from({ length: nodeCount }, (_, id) => id).filter((id) => !boundarySet.has(id));
-  const iterMax = nodeCount <= 220 ? 42 : 36;
-  const emitEvery = 3;
   const emitCount = Math.max(1, Math.ceil(iterMax / emitEvery));
   const pacing = stream ? Math.max(0, Math.floor(MIN_SOLVER_STAGE_MS / emitCount) - 2) : 0;
 
@@ -407,7 +567,7 @@ async function runRelaxationSolver(args: {
 
   for (let iter = 1; iter <= iterMax; iter += 1) {
     checkCancelled(requestId);
-    const next = positions.map((point) => ({ ...point }));
+    let residual = 0;
     for (const vertex of interior) {
       const neighbors = adjacency[vertex] ?? [];
       if (neighbors.length === 0) continue;
@@ -420,13 +580,19 @@ async function runRelaxationSolver(args: {
       }
       const avgX = sumX / neighbors.length;
       const avgY = sumY / neighbors.length;
-      next[vertex] = {
-        x: positions[vertex]!.x * 0.36 + avgX * 0.64,
-        y: positions[vertex]!.y * 0.36 + avgY * 0.64,
-      };
+      const old = positions[vertex]!;
+      const nextX = old.x * 0.28 + avgX * 0.72;
+      const nextY = old.y * 0.28 + avgY * 0.72;
+      residual += Math.hypot(nextX - old.x, nextY - old.y);
+      positions[vertex] = { x: nextX, y: nextY };
     }
-    for (let id = 0; id < nodeCount; id += 1) {
-      positions[id] = next[id]!;
+
+    if (stream && metricEvery > 0 && (iter % metricEvery === 0 || iter === iterMax)) {
+      postPartial(requestId, {
+        kind: 'metric',
+        crossings: countDrawingCrossings(positions, edges),
+        residual: interior.length > 0 ? residual / interior.length : 0,
+      });
     }
 
     if (stream && (iter % emitEvery === 0 || iter === iterMax)) {
@@ -438,15 +604,10 @@ async function runRelaxationSolver(args: {
       await sleepWithCancel(requestId, pacing);
     }
   }
-
-  const map = new Map<number, Point>();
-  positions.forEach((point, id) => {
-    map.set(id, {
-      x: clampCoordinate(point.x),
-      y: clampCoordinate(point.y),
-    });
-  });
-  return map;
+  return positions.map((point) => ({
+    x: clampCoordinate(point.x),
+    y: clampCoordinate(point.y),
+  }));
 }
 
 function checkCancelled(requestId: string) {
@@ -609,6 +770,8 @@ export async function computeWorkerResult(
     );
   });
 
+  const sampledGeographic = buildSampledGeographic(payload.geographic, sampled);
+
   const graphBundle = await trackStage('build-graph', 'constructing TopoLoom graph', () => {
     const builder = new GraphBuilder();
     for (const label of sampled.nodes) {
@@ -689,19 +852,50 @@ export async function computeWorkerResult(
       if (!meshBundle.mesh) {
         throw new Error('Planar straight-line layout requires planar embedding.');
       }
-      const faceId = chooseBoundaryFace(meshBundle.mesh, boundaryStrategy);
+      const faceStrategy = boundaryStrategy === 'geo-shaped' ? 'auto' : boundaryStrategy;
+      const faceId = chooseBoundaryFace(meshBundle.mesh, faceStrategy);
       const boundary = getFaceBoundary(meshBundle.mesh, faceId);
-      const positions = await runRelaxationSolver({
+      const useGeoBoundary = boundaryStrategy === 'geo-shaped' || (boundaryStrategy === 'auto' && sampledGeographic);
+      const geoBoundaryPlacement = useGeoBoundary && sampledGeographic
+        ? buildGeoBoundaryPlacement(boundary, sampledGeographic)
+        : null;
+      const streamed = await runRelaxationSolver({
         requestId,
         datasetId: payload.datasetId,
         sampleId: payload.sampleId,
         seed: payload.settings.seed,
         nodeCount: sampled.nodes.length,
         adjacency,
+        edges: sampled.edges,
         boundary,
+        boundaryPlacement: geoBoundaryPlacement,
+        iterMax: liveSolve ? 140 : 60,
+        emitEvery: 2,
+        metricEvery: 10,
         stream: liveSolve,
       });
-      const layout = buildLayoutFromPositions(meshBundle.mesh, positions);
+      const converged = await runRelaxationSolver({
+        requestId,
+        datasetId: payload.datasetId,
+        sampleId: payload.sampleId,
+        seed: payload.settings.seed,
+        nodeCount: sampled.nodes.length,
+        adjacency,
+        edges: sampled.edges,
+        boundary,
+        boundaryPlacement: geoBoundaryPlacement,
+        startPositions: streamed,
+        iterMax: 220,
+        emitEvery: 4,
+        metricEvery: 0,
+        stream: false,
+      });
+      const finalCrossings = countDrawingCrossings(converged, sampled.edges);
+      const finalMap = new Map<number, Point>();
+      converged.forEach((point, id) => {
+        finalMap.set(id, point);
+      });
+      const layout = buildLayoutFromPositions(meshBundle.mesh, finalMap, finalCrossings);
       return {
         mode: resolvedMode,
         layout,
@@ -713,8 +907,13 @@ export async function computeWorkerResult(
         throw new Error('Orthogonal layout requires planar embedding.');
       }
       if (liveSolve) {
-        const faceId = chooseBoundaryFace(meshBundle.mesh, boundaryStrategy);
+        const faceStrategy = boundaryStrategy === 'geo-shaped' ? 'auto' : boundaryStrategy;
+        const faceId = chooseBoundaryFace(meshBundle.mesh, faceStrategy);
         const boundary = getFaceBoundary(meshBundle.mesh, faceId);
+        const useGeoBoundary = boundaryStrategy === 'geo-shaped' || (boundaryStrategy === 'auto' && sampledGeographic);
+        const geoBoundaryPlacement = useGeoBoundary && sampledGeographic
+          ? buildGeoBoundaryPlacement(boundary, sampledGeographic)
+          : null;
         await runRelaxationSolver({
           requestId,
           datasetId: payload.datasetId,
@@ -722,7 +921,12 @@ export async function computeWorkerResult(
           seed: payload.settings.seed,
           nodeCount: sampled.nodes.length,
           adjacency,
+          edges: sampled.edges,
           boundary,
+          boundaryPlacement: geoBoundaryPlacement,
+          iterMax: 110,
+          emitEvery: 2,
+          metricEvery: 10,
           stream: true,
         });
       }
@@ -743,7 +947,11 @@ export async function computeWorkerResult(
         seed: payload.settings.seed,
         nodeCount: sampled.nodes.length,
         adjacency,
+        edges: sampled.edges,
         boundary,
+        iterMax: 84,
+        emitEvery: 2,
+        metricEvery: 10,
         stream: true,
       });
     }

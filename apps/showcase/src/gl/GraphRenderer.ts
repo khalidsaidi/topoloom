@@ -35,6 +35,7 @@ export type RendererSceneInput = {
   seed?: number;
   preview?: boolean;
   morphDurationMs?: number;
+  edgeAlpha?: number;
 };
 
 export type CameraTransform = {
@@ -221,6 +222,8 @@ export class GraphRenderer {
 
   private previewSeed = 1;
 
+  private sceneEdgeAlpha = 1;
+
   private animationFrameId: number | null = null;
 
   private onFrameState?: (state: RendererFrameState) => void;
@@ -375,6 +378,7 @@ export class GraphRenderer {
     this.routeCount = this.routeSegments.length;
     this.previewSeed = Math.trunc(scene.seed ?? 1);
     this.morphDurationMs = Math.max(420, Math.min(2000, Math.floor(scene.morphDurationMs ?? 1100)));
+    this.sceneEdgeAlpha = Math.max(0.2, Math.min(1, scene.edgeAlpha ?? 1));
 
     this.nodeCurrent = new Float32Array(this.nodeCount * 2);
     this.nodeTarget = new Float32Array(this.nodeCount * 2);
@@ -647,14 +651,14 @@ export class GraphRenderer {
 
     this.drawPass(this.edgeProgram, this.edgeVao, this.edgeCount, {
       ...common,
-      u_alpha: this.finalDeterministic ? 1 : 0.96,
+      u_alpha: (this.finalDeterministic ? 1 : 0.96) * this.sceneEdgeAlpha,
       u_routePass: false,
     });
 
     if (this.routeCount > 0) {
       this.drawPass(this.edgeProgram, this.routeVao, this.routeCount, {
         ...common,
-        u_alpha: this.morphing ? Math.max(0.46, this.morph) : 0.98,
+        u_alpha: (this.morphing ? Math.max(0.46, this.morph) : 0.98) * this.sceneEdgeAlpha,
         u_routePass: true,
       });
     }

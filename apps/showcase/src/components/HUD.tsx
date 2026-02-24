@@ -26,8 +26,9 @@ export type HudProps = {
   sampleLabel: string;
   modeLabel: string;
   stageLabel?: string;
-  computeLabel: 'Preview (animated)' | 'Solving (live)' | 'Final (TopoLoom deterministic)';
+  computeLabel: string;
   status: HudStatus;
+  modeNote?: string;
   metrics?: HudMetrics | null;
   timings?: Record<string, number>;
   buildLabel: string;
@@ -43,6 +44,7 @@ export function HUD({
   stageLabel,
   computeLabel,
   status,
+  modeNote,
   metrics,
   timings,
   buildLabel,
@@ -50,6 +52,7 @@ export function HUD({
   onResetView,
 }: HudProps) {
   const [showTimings, setShowTimings] = useState(false);
+  const computeVariant = computeLabel === 'Final (TopoLoom deterministic)' ? 'success' : 'accent';
 
   return (
     <AnimatePresence>
@@ -62,7 +65,7 @@ export function HUD({
           className={cn('glass-panel pointer-events-auto absolute left-3 top-3 z-20 w-[min(92vw,370px)] p-3 text-xs', className)}
         >
           <div className="flex items-center justify-between gap-2">
-            <Badge variant={computeLabel.startsWith('Final') ? 'success' : 'accent'}>{computeLabel}</Badge>
+            <Badge variant={computeVariant}>{computeLabel}</Badge>
             <div className="flex items-center gap-1">
               <Tooltip content="Topology-first pipeline: Graph → Planarity → Embedding → Mesh → Layout">
                 <IconButton aria-label="Pipeline explanation" variant="ghost" size="sm">
@@ -81,6 +84,7 @@ export function HUD({
             <div className="font-semibold text-slate-100">{datasetName}</div>
             <div className="text-slate-300">{sampleLabel}</div>
             <div className="text-slate-300">mode: {modeLabel}</div>
+            {modeNote ? <div className="text-amber-200/90">{modeNote}</div> : null}
           </div>
 
           <div className="mt-2 flex items-center justify-between gap-2">

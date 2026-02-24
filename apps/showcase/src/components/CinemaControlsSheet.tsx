@@ -23,6 +23,7 @@ const BOUNDARY_OPTIONS: Array<{ value: BoundarySelection; label: string }> = [
   { value: 'largest', label: 'Largest face' },
   { value: 'medium', label: 'Medium face' },
   { value: 'small', label: 'Small face' },
+  { value: 'geo-shaped', label: 'Geo-shaped boundary' },
 ];
 
 export type CinemaControlState = {
@@ -59,6 +60,7 @@ export type CinemaControlsSheetProps = {
   error?: { message: string; details?: string } | null;
   clampedWarning?: string | null;
   facesAvailable: boolean;
+  hasGeographic: boolean;
 };
 
 export function CinemaControlsSheet({
@@ -77,6 +79,7 @@ export function CinemaControlsSheet({
   error,
   clampedWarning,
   facesAvailable,
+  hasGeographic,
 }: CinemaControlsSheetProps) {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false,
@@ -90,6 +93,14 @@ export function CinemaControlsSheet({
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, []);
+
+  const boundaryOptions = hasGeographic
+    ? BOUNDARY_OPTIONS
+    : BOUNDARY_OPTIONS.filter((option) => option.value !== 'geo-shaped');
+
+  const boundaryHelper = hasGeographic
+    ? 'Geo-shaped uses sampled OSM coordinates when available.'
+    : 'Geo-shaped is available only for datasets with geographic coordinates.';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -187,8 +198,9 @@ export function CinemaControlsSheet({
                 ariaLabel="Select outer-face boundary strategy"
                 value={state.boundarySelection}
                 onValueChange={(boundarySelection) => onStateChange({ boundarySelection: boundarySelection as BoundarySelection })}
-                options={BOUNDARY_OPTIONS}
+                options={boundaryOptions}
               />
+              <div className="text-[11px] text-slate-400">{boundaryHelper}</div>
 
               <Button block variant="primary" onClick={onRun} disabled={running}>
                 {running ? 'Running topology pipeline…' : 'Run'}
