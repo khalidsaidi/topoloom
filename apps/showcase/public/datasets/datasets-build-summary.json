@@ -1,0 +1,257 @@
+{
+  "generatedAt": "2026-02-24T05:21:57.258Z",
+  "datasets": [
+    {
+      "datasetId": "power-grid",
+      "sourceUrl": "https://datarepository.wolframcloud.com/resources/Power-Grid-Network",
+      "licenseName": "Wolfram Data Repository Terms (Wolfram Cloud Terms of Use)",
+      "licenseUrl": "https://www.wolfram.com/legal/terms/wolfram-cloud.html",
+      "output": [
+        {
+          "id": "bfs-250-s1",
+          "file": "powergrid-bfs-250-s1.json",
+          "maxNodes": 250,
+          "maxEdges": 800,
+          "seed": 1,
+          "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/powergrid-bfs-250-s1.json",
+          "stats": {
+            "nodes": 250,
+            "edges": 297,
+            "density": 0.009542168674698795,
+            "maxDegree": 18,
+            "components": 1
+          },
+          "originalStats": {
+            "nodes": 4941,
+            "edges": 6594,
+            "density": 0.0005403026973346214,
+            "maxDegree": 19,
+            "components": 1
+          }
+        },
+        {
+          "id": "bfs-320-s7",
+          "file": "powergrid-bfs-320-s7.json",
+          "maxNodes": 320,
+          "maxEdges": 1200,
+          "seed": 7,
+          "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/powergrid-bfs-320-s7.json",
+          "stats": {
+            "nodes": 320,
+            "edges": 399,
+            "density": 0.007817398119122257,
+            "maxDegree": 18,
+            "components": 1
+          },
+          "originalStats": {
+            "nodes": 4941,
+            "edges": 6594,
+            "density": 0.0005403026973346214,
+            "maxDegree": 19,
+            "components": 1
+          }
+        }
+      ],
+      "originalStats": {
+        "nodes": 4941,
+        "edges": 6594,
+        "density": 0.0005403026973346214,
+        "maxDegree": 19,
+        "components": 1
+      }
+    },
+    {
+      "datasetId": "roadnet-ca",
+      "sourceUrl": "https://snap.stanford.edu/data/roadNet-CA.html",
+      "licenseName": "SNAP dataset terms (source citation requested)",
+      "licenseUrl": "https://snap.stanford.edu/data/roadNet-CA.html",
+      "output": [
+        {
+          "id": "bfs-250-s11",
+          "file": "roadnet-ca-bfs-250-s11.json",
+          "maxNodes": 250,
+          "maxEdges": 800,
+          "seed": 11,
+          "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/roadnet-ca-bfs-250-s11.json",
+          "stats": {
+            "nodes": 250,
+            "edges": 336,
+            "density": 0.010795180722891566,
+            "maxDegree": 5,
+            "components": 1
+          }
+        },
+        {
+          "id": "bfs-340-s23",
+          "file": "roadnet-ca-bfs-340-s23.json",
+          "maxNodes": 340,
+          "maxEdges": 1200,
+          "seed": 23,
+          "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/roadnet-ca-bfs-340-s23.json",
+          "stats": {
+            "nodes": 340,
+            "edges": 455,
+            "density": 0.007895193475620337,
+            "maxDegree": 5,
+            "components": 1
+          }
+        }
+      ],
+      "originalStats": {
+        "nodes": 1965206,
+        "edges": 2766607,
+        "density": 0.0000014327206657979522,
+        "maxDegree": 12,
+        "components": 2638
+      }
+    },
+    {
+      "datasetId": "bu4p",
+      "sourceUrl": "https://graphdrawing.unipg.it/data.html",
+      "licenseName": "Graph Drawing benchmark terms (publicly available datasets as stated on source hub)",
+      "licenseUrl": "https://graphdrawing.unipg.it/data.html",
+      "output": [
+        {
+          "id": "g00100-01",
+          "label": "BU4P g.00100.01",
+          "file": "benchmark-bu4p-g00100-01.json",
+          "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/benchmark-bu4p-g00100-01.json",
+          "stats": {
+            "nodes": 100,
+            "edges": 140,
+            "density": 0.028282828282828285,
+            "maxDegree": 4,
+            "components": 1
+          }
+        },
+        {
+          "id": "g00200-01",
+          "label": "BU4P g.00200.01",
+          "file": "benchmark-bu4p-g00200-01.json",
+          "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/benchmark-bu4p-g00200-01.json",
+          "stats": {
+            "nodes": 200,
+            "edges": 266,
+            "density": 0.013366834170854271,
+            "maxDegree": 4,
+            "components": 1
+          }
+        },
+        {
+          "id": "g00300-01",
+          "label": "BU4P g.00300.01",
+          "file": "benchmark-bu4p-g00300-01.json",
+          "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/benchmark-bu4p-g00300-01.json",
+          "stats": {
+            "nodes": 300,
+            "edges": 492,
+            "density": 0.01096989966555184,
+            "maxDegree": 4,
+            "components": 1
+          }
+        }
+      ]
+    },
+    {
+      "datasetId": "hamm-circuits",
+      "sourceUrl": "https://sparse.tamu.edu/Hamm",
+      "termsUrl": "https://sparse.tamu.edu/about",
+      "licenseName": "SuiteSparse Matrix Collection terms (matrices: CC-BY 4.0)",
+      "licenseUrl": "https://sparse.tamu.edu/about",
+      "output": [
+        {
+          "id": "add20",
+          "file": "suitesparse-hamm-add20-sample.json",
+          "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/suitesparse-hamm-add20-sample.json",
+          "stats": {
+            "nodes": 250,
+            "edges": 800,
+            "density": 0.02570281124497992,
+            "maxDegree": 71,
+            "components": 65
+          },
+          "originalStats": {
+            "nodes": 2395,
+            "edges": 7462,
+            "density": 0.002602888571463453,
+            "maxDegree": 123,
+            "components": 1
+          }
+        },
+        {
+          "id": "add32",
+          "file": "suitesparse-hamm-add32-sample.json",
+          "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/suitesparse-hamm-add32-sample.json",
+          "stats": {
+            "nodes": 300,
+            "edges": 623,
+            "density": 0.013890746934225194,
+            "maxDegree": 28,
+            "components": 1
+          },
+          "originalStats": {
+            "nodes": 4960,
+            "edges": 9462,
+            "density": 0.0007693733778272154,
+            "maxDegree": 31,
+            "components": 1
+          }
+        }
+      ]
+    },
+    {
+      "datasetId": "osm-downtown-sf",
+      "sourceUrl": "https://www.openstreetmap.org",
+      "licenseName": "Open Database License (ODbL) 1.0",
+      "licenseUrl": "https://opendatacommons.org/licenses/odbl/",
+      "attribution": "© OpenStreetMap contributors, ODbL 1.0",
+      "output": [
+        {
+          "id": "downtown-sf-bfs-220-s3",
+          "file": "osm-downtown-sf-bfs-220-s3.json",
+          "seed": 3,
+          "maxNodes": 220,
+          "maxEdges": 800,
+          "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/osm-downtown-sf-bfs-220-s3.json",
+          "stats": {
+            "nodes": 220,
+            "edges": 274,
+            "density": 0.01137401411374014,
+            "maxDegree": 5,
+            "components": 1
+          }
+        },
+        {
+          "id": "downtown-sf-bfs-320-s17",
+          "file": "osm-downtown-sf-bfs-320-s17.json",
+          "seed": 17,
+          "maxNodes": 320,
+          "maxEdges": 1100,
+          "outPath": "/home/khali/topoloom/apps/showcase/public/datasets/osm-downtown-sf-bfs-320-s17.json",
+          "stats": {
+            "nodes": 320,
+            "edges": 423,
+            "density": 0.008287617554858934,
+            "maxDegree": 6,
+            "components": 1
+          }
+        }
+      ],
+      "originalStats": {
+        "nodes": 6595,
+        "edges": 9053,
+        "density": 0.0004163501959071851,
+        "maxDegree": 8,
+        "components": 94
+      }
+    },
+    {
+      "datasetId": "hero",
+      "mode": "planar-straight",
+      "crossings": 0,
+      "nodes": 90,
+      "edges": 122,
+      "layoutEdges": 122
+    }
+  ]
+}

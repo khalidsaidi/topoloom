@@ -10,6 +10,7 @@
     "test": "pnpm -r test",
     "build": "pnpm -r build",
     "dev": "pnpm --filter @topoloom/showcase dev",
+    "datasets:build": "node scripts/datasets/build-all.ts",
     "typecheck": "pnpm -r typecheck",
     "docs": "typedoc",
     "check:no-stubs": "node scripts/no-stubs.mjs"
