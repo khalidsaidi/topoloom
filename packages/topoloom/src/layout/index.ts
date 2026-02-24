@@ -271,9 +271,25 @@ export function planarStraightLine(mesh: HalfEdgeMesh): LayoutResult {
   const components = connectedComponents(neighbors);
   const mainComponent = components.find((comp) => comp.some((v) => boundarySet.has(v))) ?? components[0] ?? [];
   const radius = Math.max(30, boundary.length * 12);
+  const boundarySignature = boundary.reduce(
+    (acc, v, i) => (Math.imul(acc ^ (v + 1 + i * 7), 16777619) >>> 0),
+    2166136261,
+  );
+  const axisRatio = 0.62 + ((boundarySignature % 23) / 100);
+  const stretch = 1.06 + (((boundarySignature >>> 5) % 11) / 100);
+  const angle = ((boundarySignature % 360) * Math.PI) / 180;
+  const cosA = Math.cos(angle);
+  const sinA = Math.sin(angle);
+  const a = radius * stretch;
+  const b = radius * Math.max(0.45, Math.min(0.92, axisRatio));
   boundary.forEach((v, i) => {
     const angle = (2 * Math.PI * i) / Math.max(1, boundary.length);
-    positions.set(v, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+    const ex = Math.cos(angle) * a;
+    const ey = Math.sin(angle) * b;
+    positions.set(v, {
+      x: ex * cosA - ey * sinA,
+      y: ex * sinA + ey * cosA,
+    });
   });
 
   const interior = mainComponent.filter((v) => !boundarySet.has(v));

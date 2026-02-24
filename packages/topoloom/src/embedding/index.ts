@@ -219,15 +219,31 @@ export function validateMesh(mesh: HalfEdgeMesh): { ok: boolean; errors: string[
 
 export function selectOuterFace(mesh: HalfEdgeMesh, positions?: Map<VertexId, { x: number; y: number }>): FaceId {
   if (!positions) {
-    let maxSize = -1;
-    let chosen = 0;
-    mesh.faces.forEach((cycle, idx) => {
-      if (cycle.length > maxSize) {
-        maxSize = cycle.length;
-        chosen = idx;
-      }
+    const vertexCount = Math.max(0, ...mesh.origin) + 1;
+    const target = Math.max(3, Math.min(90, Math.max(18, Math.round(4 * Math.sqrt(Math.max(1, vertexCount))))));
+    const low = Math.max(3, Math.floor(Math.min(20, vertexCount / 6)));
+    const high = Math.max(low, Math.floor(Math.min(80, vertexCount / 2)));
+
+    const candidates = mesh.faces
+      .map((cycle, idx) => ({ idx, len: cycle.length }))
+      .filter((face) => face.len >= 3);
+
+    if (candidates.length === 0) return 0 as FaceId;
+
+    const preferred = candidates.filter((face) => face.len >= low && face.len <= high);
+    const pool = preferred.length > 0 ? preferred : candidates;
+
+    const scored = pool.slice().sort((a, b) => {
+      const hugeA = a.len > high ? (a.len - high) * 2.4 : 0;
+      const hugeB = b.len > high ? (b.len - high) * 2.4 : 0;
+      const scoreA = Math.abs(a.len - target) + hugeA;
+      const scoreB = Math.abs(b.len - target) + hugeB;
+      if (scoreA !== scoreB) return scoreA - scoreB;
+      if (a.len !== b.len) return a.len - b.len;
+      return a.idx - b.idx;
     });
-    return chosen as FaceId;
+
+    return (scored[0]?.idx ?? 0) as FaceId;
   }
 
   const faceAreas = mesh.faces.map((cycle) => {
