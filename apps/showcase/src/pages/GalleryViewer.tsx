@@ -311,16 +311,15 @@ function buildSceneAndGraph(args: {
     ...graph.nodes.map((node) => ({ x: node.x, y: node.y })),
     ...graph.edges.flatMap((edge) => edge.points.map((point) => ({ x: point.x, y: point.y }))),
   ];
-  const viewportBbox = computeBBox(
+  const rawBbox = computeBBox(
     allPoints.length > 0
       ? allPoints
       : [{ x: layout.bbox.minX, y: layout.bbox.minY }, { x: layout.bbox.maxX, y: layout.bbox.maxY }],
   );
-
   return {
     scene,
     graph,
-    bbox: viewportBbox,
+    bbox: rawBbox,
   };
 }
 

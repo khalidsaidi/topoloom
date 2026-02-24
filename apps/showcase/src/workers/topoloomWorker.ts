@@ -236,6 +236,23 @@ function deterministicHairballPoint(datasetId: string, sampleId: string, seed: n
   };
 }
 
+function deterministicGridPoint(datasetId: string, sampleId: string, seed: number, id: number, n: number): Point {
+  const cols = Math.max(2, Math.ceil(Math.sqrt(Math.max(1, n))));
+  const rows = Math.max(1, Math.ceil(n / cols));
+  const col = id % cols;
+  const row = Math.floor(id / cols);
+  const spacing = 28;
+  const key = `${datasetId}:${sampleId}:${seed}:${id}:grid`;
+  const h = hash32(key) / 4294967296;
+  const h2 = hash32(`${key}:j`) / 4294967296;
+  const jitterX = (fract(h * 5.1) - 0.5) * 7.2;
+  const jitterY = (fract(h2 * 4.3) - 0.5) * 7.2;
+  return {
+    x: (col - (cols - 1) / 2) * spacing + jitterX,
+    y: (row - (rows - 1) / 2) * spacing + jitterY,
+  };
+}
+
 function uniqueCycle(vertices: number[]) {
   const cycle: number[] = [];
   for (const vertex of vertices) {
@@ -1054,64 +1071,60 @@ export async function computeWorkerResult(
     if (resolvedMode === 'planarization-straight' || resolvedMode === 'planarization-orthogonal') {
       let mode: DatasetMode = resolvedMode;
       let planarized: ReturnType<typeof planarizationLayout> | null = null;
-      if (resolvedMode === 'planarization-orthogonal') {
+      const buildRelaxedFallback = async () => {
+        const startPositions = Array.from({ length: sampled.nodes.length }, (_, id) =>
+          deterministicHairballPoint(payload.datasetId, payload.sampleId, payload.settings.seed, id, sampled.nodes.length),
+        );
+        const targetPositions = Array.from({ length: sampled.nodes.length }, (_, id) =>
+          deterministicGridPoint(payload.datasetId, payload.sampleId, payload.settings.seed, id, sampled.nodes.length),
+        );
+        const fallback = await runRelaxationSolver({
+          requestId,
+          datasetId: payload.datasetId,
+          sampleId: payload.sampleId,
+          seed: payload.settings.seed,
+          nodeCount: sampled.nodes.length,
+          adjacency,
+          edges: sampled.edges,
+          boundary: [],
+          startPositions,
+          targetPositions,
+          targetWeight: 0.66,
+          iterMax: liveSolve ? 180 : 240,
+          emitEvery: 2,
+          metricEvery: 8,
+          stream: liveSolve,
+        });
+        return {
+          mode: mode === 'planarization-orthogonal' ? 'planarization-straight' : mode,
+          layout: buildStraightLayoutFromSample(sampled.edges, fallback),
+        } as const;
+      };
+      const orthogonalRisky = sampled.nodes.length > 220 || sampled.edges.length > 620;
+      const planarizationTooHeavy = sampled.nodes.length > 170 || sampled.edges.length > 520;
+      if (planarizationTooHeavy) {
+        return buildRelaxedFallback();
+      }
+      if (mode === 'planarization-orthogonal' && orthogonalRisky) {
+        mode = 'planarization-straight';
+      }
+
+      if (mode === 'planarization-orthogonal') {
         try {
           planarized = planarizationLayout(graphBundle.graph, { mode: 'orthogonal' });
         } catch {
           mode = 'planarization-straight';
-          try {
-            planarized = planarizationLayout(graphBundle.graph, { mode: 'straight' });
-          } catch {
-            const fallback = await runRelaxationSolver({
-              requestId,
-              datasetId: payload.datasetId,
-              sampleId: payload.sampleId,
-              seed: payload.settings.seed,
-              nodeCount: sampled.nodes.length,
-              adjacency,
-              edges: sampled.edges,
-              boundary: [],
-              startPositions: Array.from({ length: sampled.nodes.length }, (_, id) =>
-                deterministicHairballPoint(payload.datasetId, payload.sampleId, payload.settings.seed, id, sampled.nodes.length),
-              ),
-              iterMax: liveSolve ? 180 : 240,
-              emitEvery: 2,
-              metricEvery: 8,
-              stream: liveSolve,
-            });
-            return {
-              mode,
-              layout: buildStraightLayoutFromSample(sampled.edges, fallback),
-            };
-          }
         }
-      } else {
+      }
+
+      if (mode === 'planarization-straight' && !planarized) {
         try {
           planarized = planarizationLayout(graphBundle.graph, { mode: 'straight' });
         } catch {
-          const fallback = await runRelaxationSolver({
-            requestId,
-            datasetId: payload.datasetId,
-            sampleId: payload.sampleId,
-            seed: payload.settings.seed,
-            nodeCount: sampled.nodes.length,
-            adjacency,
-            edges: sampled.edges,
-            boundary: [],
-            startPositions: Array.from({ length: sampled.nodes.length }, (_, id) =>
-              deterministicHairballPoint(payload.datasetId, payload.sampleId, payload.settings.seed, id, sampled.nodes.length),
-            ),
-            iterMax: liveSolve ? 180 : 240,
-            emitEvery: 2,
-            metricEvery: 8,
-            stream: liveSolve,
-          });
-          return {
-            mode,
-            layout: buildStraightLayoutFromSample(sampled.edges, fallback),
-          };
+          return buildRelaxedFallback();
         }
       }
+
       if (!planarized) {
         throw new Error('Planarization layout failed unexpectedly.');
       }

@@ -636,7 +636,14 @@ export class GraphRenderer {
     gl.bindVertexArray(null);
   }
 
-  private drawScene(timeMs: number, width: number, height: number, camera: mat3) {
+  private drawScene(
+    timeMs: number,
+    width: number,
+    height: number,
+    camera: mat3,
+    viewportWidth = width,
+    viewportHeight = height,
+  ) {
     const gl = this.gl;
     gl.viewport(0, 0, width, height);
     gl.clearColor(0.02, 0.03, 0.07, 1);
@@ -645,7 +652,7 @@ export class GraphRenderer {
 
     const common = {
       u_camera: camera,
-      u_viewport: [width, height] as [number, number],
+      u_viewport: [viewportWidth, viewportHeight] as [number, number],
       u_time: timeMs,
     };
 
@@ -685,7 +692,7 @@ export class GraphRenderer {
     this.updatePreviewPositions(timeMs);
     this.updateMixedPositions();
     this.updateEdgeInstances();
-    this.drawScene(timeMs, this.canvas.width, this.canvas.height, this.camera);
+    this.drawScene(timeMs, this.canvas.width, this.canvas.height, this.camera, this.width, this.height);
 
     this.onFrameState?.({
       morph: this.morph,
@@ -750,7 +757,7 @@ export class GraphRenderer {
 
     this.drawPass(this.nodePickProgram, this.nodePickVao, this.nodeCount, {
       u_camera: this.camera,
-      u_viewport: [this.canvas.width, this.canvas.height],
+      u_viewport: [this.width, this.height],
       u_time: 0,
       u_morph: this.morph,
       u_glow: false,
