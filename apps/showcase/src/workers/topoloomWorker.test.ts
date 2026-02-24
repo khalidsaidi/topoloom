@@ -122,10 +122,12 @@ describe('topoloomWorker computeWorkerResult', () => {
       ],
       settings: {
         mode: 'planarization-straight',
+        boundarySelection: 'auto',
         maxNodes: 5,
         maxEdges: 20,
         seed: 1,
         showWitness: true,
+        liveSolve: false,
       },
     });
 

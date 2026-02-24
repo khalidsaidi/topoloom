@@ -79,7 +79,7 @@ void main() {
   float isSelected = hasBit(v_flags, 16.0);
   float isNeighbor = hasBit(v_flags, 32.0);
 
-  vec3 color = mix(vec3(0.07, 0.11, 0.17), vec3(0.02, 0.52, 0.78), step(0.5, isArticulation));
+  vec3 color = mix(vec3(0.82, 0.9, 0.98), vec3(0.03, 0.62, 0.9), step(0.5, isArticulation));
   if (isNeighbor > 0.5) {
     color = vec3(0.91, 0.62, 0.12);
   }
@@ -93,7 +93,7 @@ void main() {
   if (u_glow) {
     float glow = 1.0 - smoothstep(0.2, 1.5, d);
     vec3 glowColor = mix(color, vec3(0.72, 0.9, 1.0), 0.42);
-    outColor = vec4(glowColor, glow * 0.38);
+    outColor = vec4(glowColor, glow * 0.56);
     return;
   }
 

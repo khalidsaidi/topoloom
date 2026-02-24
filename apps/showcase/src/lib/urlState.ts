@@ -1,4 +1,5 @@
 import type { DatasetMode } from '@/data/datasets';
+import type { BoundarySelection } from '@/lib/workerClient';
 
 const MODES: DatasetMode[] = [
   'planar-straight',
@@ -10,6 +11,7 @@ const MODES: DatasetMode[] = [
 export type ViewerUrlState = {
   sample: string;
   mode: DatasetMode;
+  boundarySelection: BoundarySelection;
   maxNodes: number;
   maxEdges: number;
   seed: number;
@@ -25,6 +27,7 @@ export type ViewerUrlState = {
 export type ViewerDefaults = {
   sample: string;
   mode: DatasetMode;
+  boundarySelection: BoundarySelection;
   maxNodes: number;
   maxEdges: number;
   seed: number;
@@ -48,6 +51,12 @@ const parseIntClamped = (value: string | null, fallback: number, min: number, ma
 const asMode = (value: string | null, fallback: DatasetMode): DatasetMode => {
   if (!value) return fallback;
   return (MODES.includes(value as DatasetMode) ? value : fallback) as DatasetMode;
+};
+
+const asBoundarySelection = (value: string | null, fallback: BoundarySelection): BoundarySelection => {
+  if (!value) return fallback;
+  if (value === 'auto' || value === 'largest' || value === 'medium' || value === 'small') return value;
+  return fallback;
 };
 
 const normalizeCompareModes = (modes: DatasetMode[], selectedMode: DatasetMode): DatasetMode[] => {
@@ -85,6 +94,7 @@ export function parseViewerUrlState(
   return {
     sample: params.get('sample') ?? defaults.sample,
     mode,
+    boundarySelection: asBoundarySelection(params.get('boundary'), defaults.boundarySelection),
     maxNodes: parseIntClamped(params.get('maxNodes'), defaults.maxNodes, 1, limits.maxNodesHard),
     maxEdges: parseIntClamped(params.get('maxEdges'), defaults.maxEdges, 1, limits.maxEdgesHard),
     seed: parseIntClamped(params.get('seed'), defaults.seed, -2147483648, 2147483647),
@@ -102,6 +112,7 @@ export function serializeViewerUrlState(state: ViewerUrlState): string {
   const params = new URLSearchParams();
   params.set('sample', state.sample);
   params.set('mode', state.mode);
+  params.set('boundary', state.boundarySelection);
   params.set('maxNodes', String(Math.floor(state.maxNodes)));
   params.set('maxEdges', String(Math.floor(state.maxEdges)));
   params.set('seed', String(Math.floor(state.seed)));

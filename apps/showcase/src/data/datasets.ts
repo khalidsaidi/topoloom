@@ -276,9 +276,12 @@ export const datasets: DatasetDef[] = [
 ];
 
 export const datasetById = new Map(datasets.map((dataset) => [dataset.id, dataset]));
+const datasetAliasToId: Record<string, string> = {
+  osm: 'osm-downtown-sf',
+};
 
 export function getDatasetById(datasetId: string): DatasetDef | undefined {
-  return datasetById.get(datasetId);
+  return datasetById.get(datasetId) ?? datasetById.get(datasetAliasToId[datasetId] ?? '');
 }
 
 export function getDefaultSample(dataset: DatasetDef) {

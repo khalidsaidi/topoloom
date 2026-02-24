@@ -1,17 +1,20 @@
 import type { DatasetMode } from '@/data/datasets';
 
+export type BoundarySelection = 'auto' | 'largest' | 'medium' | 'small';
+
 export type WorkerStage =
   | 'sample'
   | 'build-graph'
   | 'planarity'
   | 'embedding'
+  | 'mesh'
   | 'layout'
   | 'report'
   | 'serialize';
 
 export type WorkerPartial =
   | {
-      kind: 'sample';
+      kind: 'sampleVisited';
       visited: number[];
     }
   | {
@@ -24,8 +27,9 @@ export type WorkerPartial =
       faceSizes: number[];
     }
   | {
-      kind: 'layoutTarget';
+      kind: 'positions';
       positions: Array<[number, number, number]>;
+      iter: number;
     };
 
 export type WorkerComputePayload = {
@@ -35,10 +39,12 @@ export type WorkerComputePayload = {
   edges: [number, number][];
   settings: {
     mode: DatasetMode;
+    boundarySelection: BoundarySelection;
     maxNodes: number;
     maxEdges: number;
     seed: number;
     showWitness: boolean;
+    liveSolve?: boolean;
   };
 };
 

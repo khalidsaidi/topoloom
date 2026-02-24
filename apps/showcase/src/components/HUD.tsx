@@ -26,7 +26,7 @@ export type HudProps = {
   sampleLabel: string;
   modeLabel: string;
   stageLabel?: string;
-  computeLabel: 'Preview (animated)' | 'Final (TopoLoom deterministic)';
+  computeLabel: 'Preview (animated)' | 'Solving (live)' | 'Final (TopoLoom deterministic)';
   status: HudStatus;
   metrics?: HudMetrics | null;
   timings?: Record<string, number>;

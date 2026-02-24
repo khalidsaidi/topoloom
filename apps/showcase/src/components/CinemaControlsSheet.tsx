@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { DatasetDef, DatasetMode } from '@/data/datasets';
+import type { BoundarySelection } from '@/lib/workerClient';
 import { Accordion, AccordionItem } from '@/ui/Accordion';
 import { Button } from '@/ui/Button';
 import { Checkbox } from '@/ui/Checkbox';
@@ -17,9 +18,17 @@ const MODES: DatasetMode[] = [
   'planarization-orthogonal',
 ];
 
+const BOUNDARY_OPTIONS: Array<{ value: BoundarySelection; label: string }> = [
+  { value: 'auto', label: 'Auto (heuristic)' },
+  { value: 'largest', label: 'Largest face' },
+  { value: 'medium', label: 'Medium face' },
+  { value: 'small', label: 'Small face' },
+];
+
 export type CinemaControlState = {
   sample: string;
   mode: DatasetMode;
+  boundarySelection: BoundarySelection;
   maxNodes: number;
   maxEdges: number;
   seed: number;
@@ -171,6 +180,14 @@ export function CinemaControlsSheet({
                   { value: 'webgl', label: 'WebGL2 (primary)' },
                   { value: 'svg', label: 'SVG (inspect/export)' },
                 ]}
+              />
+
+              <div className="space-y-1 text-xs text-slate-400">Boundary selection</div>
+              <Select
+                ariaLabel="Select outer-face boundary strategy"
+                value={state.boundarySelection}
+                onValueChange={(boundarySelection) => onStateChange({ boundarySelection: boundarySelection as BoundarySelection })}
+                options={BOUNDARY_OPTIONS}
               />
 
               <Button block variant="primary" onClick={onRun} disabled={running}>

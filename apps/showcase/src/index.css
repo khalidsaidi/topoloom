@@ -118,12 +118,19 @@
 }
 
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
+    margin: 0;
   }
   code,
   pre {

@@ -10,6 +10,7 @@ const targets = [
   'apps/showcase/src/components/CinemaControlsSheet.tsx',
   'apps/showcase/src/components/PipelineStrip.tsx',
   'apps/showcase/src/components/HUD.tsx',
+  'apps/showcase/src/components/TopRightActions.tsx',
   'apps/showcase/src/components/CompareLayout.tsx',
 ];
 

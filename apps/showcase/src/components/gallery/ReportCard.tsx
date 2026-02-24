@@ -1,5 +1,5 @@
 import type { WorkerResult } from '@/lib/workerClient';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardTitle } from '@/ui/Card';
 
 function histogram(values: number[]) {
   const map = new Map<number, number>();
@@ -17,10 +17,8 @@ export function ReportCard({ result }: ReportCardProps) {
   if (!result) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Topology Report Card</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">Run computation to populate the report.</CardContent>
+        <CardTitle>Topology Report Card</CardTitle>
+        <p className="mt-2 text-sm text-slate-300">Run computation to populate the report.</p>
       </Card>
     );
   }
@@ -29,21 +27,19 @@ export function ReportCard({ result }: ReportCardProps) {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Topology Report Card</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4 text-sm">
+      <CardTitle>Topology Report Card</CardTitle>
+      <div className="mt-3 space-y-4 text-sm">
         <section id="report-sample" className="space-y-1">
-          <div className="font-medium">Sample stats</div>
-          <div className="text-muted-foreground">
+          <div className="font-medium text-slate-100">Sample stats</div>
+          <div className="text-slate-300">
             Nodes: {result.sampledStats.nodes} • Edges: {result.sampledStats.edges} • Components:{' '}
             {result.sampledStats.components} • Max degree: {result.sampledStats.maxDegree}
           </div>
         </section>
 
         <section id="report-planarity" className="space-y-1">
-          <div className="font-medium">Planarity</div>
-          <div className="text-muted-foreground">
+          <div className="font-medium text-slate-100">Planarity</div>
+          <div className="text-slate-300">
             {result.planarity.isPlanar ? 'Planar' : 'Nonplanar'} • Embedding available:{' '}
             {result.planarity.embeddingAvailable ? 'yes' : 'no'}
             {result.planarity.witness
@@ -53,9 +49,9 @@ export function ReportCard({ result }: ReportCardProps) {
         </section>
 
         <section id="report-faces" className="space-y-1">
-          <div className="font-medium">Faces</div>
+          <div className="font-medium text-slate-100">Faces</div>
           {result.report.faces ? (
-            <div className="space-y-1 text-muted-foreground">
+            <div className="space-y-1 text-slate-300">
               <div>Face count: {result.report.faces.count}</div>
               <div>
                 Size histogram:{' '}
@@ -63,34 +59,34 @@ export function ReportCard({ result }: ReportCardProps) {
               </div>
             </div>
           ) : (
-            <div className="text-muted-foreground">No face mesh available for this run.</div>
+            <div className="text-slate-300">No face mesh available for this run.</div>
           )}
         </section>
 
         <section id="report-biconnected" className="space-y-1">
-          <div className="font-medium">Biconnected summary</div>
-          <div className="text-muted-foreground">
+          <div className="font-medium text-slate-100">Biconnected summary</div>
+          <div className="text-slate-300">
             Blocks: {result.report.biconnected.blocks} • Articulation points:{' '}
             {result.report.biconnected.articulationPoints} • Bridges: {result.report.biconnected.bridges}
           </div>
         </section>
 
         <section id="report-spqr" className="space-y-1">
-          <div className="font-medium">SPQR summary</div>
+          <div className="font-medium text-slate-100">SPQR summary</div>
           {result.report.spqr ? (
-            <div className="text-muted-foreground">
+            <div className="text-slate-300">
               Nodes: {result.report.spqr.nodes} • S:{result.report.spqr.counts.S} • P:
               {result.report.spqr.counts.P} • R:{result.report.spqr.counts.R} • Q:
               {result.report.spqr.counts.Q}
             </div>
           ) : (
-            <div className="text-muted-foreground">SPQR summary unavailable for this sample.</div>
+            <div className="text-slate-300">SPQR summary unavailable for this sample.</div>
           )}
         </section>
 
         <section id="report-timings" className="space-y-1">
-          <div className="font-medium">Timings</div>
-          <div className="grid gap-1 text-muted-foreground sm:grid-cols-2">
+          <div className="font-medium text-slate-100">Timings</div>
+          <div className="grid gap-1 text-slate-300 sm:grid-cols-2">
             {Object.entries(result.timingsMs).map(([stage, ms]) => (
               <div key={stage}>
                 {stage}: {Math.round(ms)} ms
@@ -98,7 +94,7 @@ export function ReportCard({ result }: ReportCardProps) {
             ))}
           </div>
         </section>
-      </CardContent>
+      </div>
     </Card>
   );
 }

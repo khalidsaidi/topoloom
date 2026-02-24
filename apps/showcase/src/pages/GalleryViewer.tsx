@@ -10,6 +10,7 @@ import { CompareLayout } from '@/components/CompareLayout';
 import { CinemaControlsSheet, type CinemaControlState } from '@/components/CinemaControlsSheet';
 import { HUD, type HudStatus } from '@/components/HUD';
 import { PipelineStrip, type PipelineStepId } from '@/components/PipelineStrip';
+import { TopRightActions } from '@/components/TopRightActions';
 import { WebGLViewport, type WebGLViewportHandle } from '@/components/viewports/WebGLViewport';
 import { SvgViewport } from '@/components/viewports/SvgViewport';
 import type {
@@ -38,7 +39,6 @@ import {
   type ViewerUrlState,
 } from '@/lib/urlState';
 
-import { Badge } from '@/ui/Badge';
 import { Button } from '@/ui/Button';
 import { Sheet, SheetContent } from '@/ui/Sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/Tabs';
@@ -55,6 +55,7 @@ const STAGE_LABEL: Record<WorkerStage, string> = {
   'build-graph': 'Build graph',
   planarity: 'Planarity',
   embedding: 'Embedding',
+  mesh: 'Mesh',
   layout: 'Layout',
   report: 'Report',
   serialize: 'Serialize',
@@ -101,9 +102,9 @@ type ViewerStatus = {
 };
 
 type WitnessPartial = Extract<WorkerPartial, { kind: 'witness' }>;
-type SamplePartial = Extract<WorkerPartial, { kind: 'sample' }>;
+type SamplePartial = Extract<WorkerPartial, { kind: 'sampleVisited' }>;
 type FacesPartial = Extract<WorkerPartial, { kind: 'faces' }>;
-type LayoutTargetPartial = Extract<WorkerPartial, { kind: 'layoutTarget' }>;
+type PositionPartial = Extract<WorkerPartial, { kind: 'positions' }>;
 
 function edgeKey(edge: [number, number]) {
   return edge[0] < edge[1] ? `${edge[0]},${edge[1]}` : `${edge[1]},${edge[0]}`;
@@ -148,22 +149,32 @@ function hash32(input: string) {
   return h >>> 0;
 }
 
-function deterministicScramblePositions(totalNodes: number, salt: string) {
-  const base = hash32(salt);
+function fract(value: number) {
+  return value - Math.floor(value);
+}
+
+function deterministicScramblePositions(args: {
+  totalNodes: number;
+  datasetId: string;
+  sampleId: string;
+  seed: number;
+}) {
+  const { totalNodes, datasetId, sampleId, seed } = args;
   const points: Array<{ x: number; y: number }> = [];
-  const maxRadius = 520;
+  const maxRadius = 260 + Math.sqrt(Math.max(1, totalNodes)) * 18;
 
   for (let id = 0; id < totalNodes; id += 1) {
-    const local = hash32(`${salt}:${id}:${base}`);
-    const t = ((local & 0xffff) / 0xffff);
-    const swirl = (((local >>> 16) & 0xffff) / 0xffff);
-    const radius = Math.sqrt(t) * maxRadius;
-    const angle = swirl * Math.PI * 8 + id * 0.19;
-    const jitter = (hash32(`${salt}:j:${id}`) % 31) - 15;
+    const key = `${datasetId}:${sampleId}:${seed}:${id}`;
+    const h = hash32(key) / 4294967296;
+    const h2 = hash32(`${key}:j`) / 4294967296;
+    const angle = Math.PI * 2 * fract(h);
+    const radius = Math.pow(fract(h * 1.7), 0.35) * maxRadius;
+    const jitterAngle = Math.PI * 2 * fract(h2 * 1.13);
+    const jitterMag = 7 + fract(h2 * 3.7) * 11;
 
     points.push({
-      x: Math.cos(angle) * radius + jitter,
-      y: Math.sin(angle) * radius + jitter * 0.75,
+      x: Math.cos(angle) * radius + Math.cos(jitterAngle) * jitterMag,
+      y: Math.sin(angle) * radius + Math.sin(jitterAngle) * jitterMag,
     });
   }
 
@@ -366,6 +377,7 @@ function getDefaults(datasetId: string, search: string): [ViewerDefaults, Cinema
   const defaults: ViewerDefaults = {
     sample: defaultSample.id,
     mode: defaultSample.recommended.mode,
+    boundarySelection: 'auto',
     maxNodes: defaultSample.recommended.maxNodes,
     maxEdges: defaultSample.recommended.maxEdges,
     seed: defaultSample.recommended.seed,
@@ -375,6 +387,7 @@ function getDefaults(datasetId: string, search: string): [ViewerDefaults, Cinema
   const controls: CinemaControlState = {
     sample: parsed.sample,
     mode: parsed.mode,
+    boundarySelection: parsed.boundarySelection,
     maxNodes: parsed.maxNodes,
     maxEdges: parsed.maxEdges,
     seed: parsed.seed,
@@ -536,6 +549,7 @@ export function GalleryViewer() {
     seeded?.[1] ?? {
       sample: '',
       mode: 'planar-straight',
+      boundarySelection: 'auto',
       maxNodes: 250,
       maxEdges: 800,
       seed: 1,
@@ -570,7 +584,7 @@ export function GalleryViewer() {
   const [partialSampleVisited, setPartialSampleVisited] = useState<number[]>([]);
   const [partialWitness, setPartialWitness] = useState<WitnessPartial | null>(null);
   const [partialFaces, setPartialFaces] = useState<FacesPartial | null>(null);
-  const [partialLayoutTarget, setPartialLayoutTarget] = useState<LayoutTargetPartial | null>(null);
+  const [partialPositions, setPartialPositions] = useState<PositionPartial | null>(null);
 
   const [controlsOpen, setControlsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -582,6 +596,7 @@ export function GalleryViewer() {
   const [tab, setTab] = useState<'report' | 'raw'>('report');
 
   const [mainCamera, setMainCamera] = useState<CameraTransform | undefined>(undefined);
+  const [fitSignal, setFitSignal] = useState(0);
   const [frameState, setFrameState] = useState<RendererFrameState>({
     morph: 0,
     preview: true,
@@ -643,7 +658,7 @@ export function GalleryViewer() {
     setPartialSampleVisited([]);
     setPartialWitness(null);
     setPartialFaces(null);
-    setPartialLayoutTarget(null);
+    setPartialPositions(null);
 
     loadDatasetSample(sampleDef.file)
       .then((loaded) => {
@@ -695,6 +710,7 @@ export function GalleryViewer() {
     const state: ViewerUrlState = {
       sample: sampleDef.id,
       mode: controls.mode,
+      boundarySelection: controls.boundarySelection,
       maxNodes: controls.maxNodes,
       maxEdges: controls.maxEdges,
       seed: controls.seed,
@@ -779,10 +795,12 @@ export function GalleryViewer() {
 
   const scramblePositions = useMemo(() => {
     if (!localSample || !sampleDef || !dataset) return [];
-    return deterministicScramblePositions(
-      localSample.nodes.length,
-      `${dataset.id}:${sampleDef.id}:${clampedControls.seed}`,
-    );
+    return deterministicScramblePositions({
+      totalNodes: localSample.nodes.length,
+      datasetId: dataset.id,
+      sampleId: sampleDef.id,
+      seed: clampedControls.seed,
+    });
   }, [clampedControls.seed, dataset, localSample, sampleDef]);
 
   const runningVisibleSet = useMemo(() => {
@@ -862,9 +880,9 @@ export function GalleryViewer() {
     return buildPreviewLayout(scramblePositions);
   }, [localSample, scramblePositions]);
 
-  const partialLayout = useMemo(() => {
-    if (!partialLayoutTarget || !localSample) return null;
-    const positions = partialLayoutTarget.positions
+  const solvingLayout = useMemo(() => {
+    if (!partialPositions || !localSample) return null;
+    const positions = partialPositions.positions
       .map(([id, x, y]) => [id, { x, y }] as [number, { x: number; y: number }])
       .sort((a, b) => a[0] - b[0]);
 
@@ -879,7 +897,7 @@ export function GalleryViewer() {
       edgeRoutes: [] as Array<{ edge: [number, number]; points: Array<{ x: number; y: number }> }>,
       bbox,
     } satisfies WorkerResult['layout'];
-  }, [localSample, partialLayoutTarget]);
+  }, [localSample, partialPositions]);
 
   const previewBundle = useMemo(() => {
     if (!previewLayout || !localSample) return null;
@@ -896,20 +914,25 @@ export function GalleryViewer() {
     });
   }, [edgeFlags, localSample, nodeFlags, previewLayout, reducedMotion, runningVisibleSet, scramblePositions]);
 
-  const partialTargetBundle = useMemo(() => {
-    if (!partialLayout || !localSample) return null;
+  const solvingBundle = useMemo(() => {
+    if (!solvingLayout || !localSample) return null;
     return buildSceneAndGraph({
       sampledNodes: localSample.nodes,
       sampledEdges: localSample.edges,
-      layout: partialLayout,
+      layout: solvingLayout,
       scramblePositions,
       nodeFlags,
       edgeFlags,
       visibleNodeIds: runningVisibleSet,
       reducedMotion,
-      animateToTarget: true,
+      animateToTarget: false,
     });
-  }, [edgeFlags, localSample, nodeFlags, partialLayout, reducedMotion, runningVisibleSet, scramblePositions]);
+  }, [edgeFlags, localSample, nodeFlags, reducedMotion, runningVisibleSet, scramblePositions, solvingLayout]);
+
+  const solveStartPositions = useMemo(() => {
+    if (!solvingLayout) return scramblePositions;
+    return solvingLayout.positions.map(([, point]) => ({ x: point.x, y: point.y }));
+  }, [scramblePositions, solvingLayout]);
 
   const precomputedBundle = useMemo(() => {
     if (!precomputedLayout || !localSample) return null;
@@ -931,15 +954,15 @@ export function GalleryViewer() {
       sampledNodes: result.sampledGraph.nodes,
       sampledEdges: result.sampledGraph.edges,
       layout: result.layout,
-      scramblePositions,
+      scramblePositions: solveStartPositions,
       nodeFlags,
       edgeFlags,
       reducedMotion,
       animateToTarget: true,
     });
-  }, [edgeFlags, nodeFlags, reducedMotion, result, scramblePositions]);
+  }, [edgeFlags, nodeFlags, reducedMotion, result, solveStartPositions]);
 
-  const activeBundle = resultBundle ?? partialTargetBundle ?? (running ? previewBundle : precomputedBundle ?? previewBundle);
+  const activeBundle = resultBundle ?? (running ? solvingBundle ?? previewBundle : precomputedBundle ?? previewBundle);
 
   const comparePanels = useMemo(() => {
     if (!clampedControls.compare || sampleState.status !== 'ready' || !result) return [] as CompareModePanel[];
@@ -997,7 +1020,7 @@ export function GalleryViewer() {
     }
 
     const elapsed = Date.now() - stageShownAtRef.current;
-    const wait = Math.max(0, 150 - elapsed);
+    const wait = Math.max(0, 180 - elapsed);
 
     if (stageTimerRef.current) window.clearTimeout(stageTimerRef.current);
     stageTimerRef.current = window.setTimeout(() => {
@@ -1023,9 +1046,10 @@ export function GalleryViewer() {
     setPartialSampleVisited([]);
     setPartialWitness(null);
     setPartialFaces(null);
-    setPartialLayoutTarget(null);
+    setPartialPositions(null);
     setSelectedNodeId(null);
     setMainCamera(undefined);
+    setFitSignal((prev) => prev + 1);
     setReportOpen(false);
     revealUi();
 
@@ -1041,10 +1065,12 @@ export function GalleryViewer() {
         edges: sampleState.data.edges,
         settings: {
           mode,
+          boundarySelection: clampedControls.boundarySelection,
           maxNodes: clampedControls.maxNodes,
           maxEdges: clampedControls.maxEdges,
           seed: clampedControls.seed,
           showWitness: clampedControls.showWitness,
+          liveSolve: streamPartials,
         },
       };
 
@@ -1052,11 +1078,13 @@ export function GalleryViewer() {
         signal: abort.signal,
         onProgress: (next) => {
           setProgress(next);
-          updateDisplayStage(next);
+          if (next.stage !== 'build-graph' && next.stage !== 'serialize') {
+            updateDisplayStage(next);
+          }
         },
         onPartial: streamPartials
           ? (partial) => {
-              if (partial.kind === 'sample') {
+              if (partial.kind === 'sampleVisited') {
                 const samplePartial = partial as SamplePartial;
                 setPartialSampleVisited(samplePartial.visited);
                 return;
@@ -1069,8 +1097,14 @@ export function GalleryViewer() {
                 setPartialFaces(partial as FacesPartial);
                 return;
               }
-              if (partial.kind === 'layoutTarget') {
-                setPartialLayoutTarget(partial as LayoutTargetPartial);
+              if (partial.kind === 'positions') {
+                const positionPartial = partial as PositionPartial;
+                setPartialPositions((previous) => {
+                  if (!previous) {
+                    setFitSignal((prev) => prev + 1);
+                  }
+                  return positionPartial;
+                });
               }
             }
           : undefined,
@@ -1089,6 +1123,7 @@ export function GalleryViewer() {
       }
 
       setResult(primary);
+      setFitSignal((prev) => prev + 1);
 
       const compareMap: Record<string, WorkerResult> = {
         [clampedControls.mode]: primary,
@@ -1177,9 +1212,10 @@ export function GalleryViewer() {
   }, [localSample, result, viewerStatus.crossings]);
 
   const computeLabel = useMemo(() => {
-    if (result && frameState.finalDeterministic) return 'Final (TopoLoom deterministic)' as const;
-    if (result && reducedMotion) return 'Final (TopoLoom deterministic)' as const;
-    if (precomputedLayout && !running && !result) return 'Final (TopoLoom deterministic)' as const;
+    if (running) return 'Solving (live)' as const;
+    if (result && (frameState.finalDeterministic || reducedMotion)) return 'Final (TopoLoom deterministic)' as const;
+    if (result && !frameState.finalDeterministic) return 'Solving (live)' as const;
+    if (precomputedLayout && !result) return 'Final (TopoLoom deterministic)' as const;
     return 'Preview (animated)' as const;
   }, [frameState.finalDeterministic, precomputedLayout, reducedMotion, result, running]);
 
@@ -1195,25 +1231,34 @@ export function GalleryViewer() {
       return 'Testing planarity';
     }
     if (displayStage.stage === 'embedding') {
+      return 'Resolving cyclic order around vertices';
+    }
+    if (displayStage.stage === 'mesh') {
       return partialFaces ? `Faces found: ${partialFaces.faceSizes.length}` : 'Building half-edge mesh';
     }
     if (displayStage.stage === 'layout') {
-      return 'Untangling: scramble → deterministic layout';
+      const iter = partialPositions?.iter;
+      return iter && iter > 0 ? `Untangling live (iter ${iter})` : 'Untangling: scramble → deterministic layout';
     }
     if (displayStage.stage === 'report') {
       return 'Report ready';
     }
     return displayStage.detail ?? 'Serializing';
-  }, [displayStage, partialFaces, partialSampleVisited.length, partialWitness]);
+  }, [displayStage, partialFaces, partialPositions?.iter, partialSampleVisited.length, partialWitness]);
 
   const pipelineActiveSteps = useMemo(() => {
     if (result?.planarity.isPlanar) return ['graph', 'planarity', 'embedding', 'mesh', 'layout'] as PipelineStepId[];
     if (result) return ['graph', 'planarity', 'layout'] as PipelineStepId[];
+    if (partialPositions) {
+      return partialFaces
+        ? (['graph', 'planarity', 'embedding', 'mesh', 'layout'] as PipelineStepId[])
+        : (['graph', 'planarity', 'layout'] as PipelineStepId[]);
+    }
     if (partialFaces) return ['graph', 'planarity', 'embedding', 'mesh'] as PipelineStepId[];
     if (partialWitness) return ['graph', 'planarity'] as PipelineStepId[];
     if (partialSampleVisited.length > 0) return ['graph'] as PipelineStepId[];
     return ['graph'] as PipelineStepId[];
-  }, [partialFaces, partialSampleVisited.length, partialWitness, result]);
+  }, [partialFaces, partialPositions, partialSampleVisited.length, partialWitness, result]);
 
   const onPipelineStepClick = (step: PipelineStepId) => {
     const id = stepToReportSection[step];
@@ -1338,7 +1383,7 @@ export function GalleryViewer() {
   }
 
   return (
-    <div className="theme-cinema relative min-h-screen overflow-hidden" onMouseMove={revealUi} onTouchStart={revealUi}>
+    <div className="theme-cinema relative h-full overflow-hidden" onMouseMove={revealUi} onTouchStart={revealUi}>
       <div className="fixed inset-0 z-0">
         {sampleState.status === 'loading' ? <div className="h-full w-full animate-pulse bg-slate-900" /> : null}
 
@@ -1362,8 +1407,8 @@ export function GalleryViewer() {
               onNodePick={(nodeId) => setSelectedNodeId(nodeId)}
               onFrameState={setFrameState}
               onInteraction={revealUi}
-              rendererLabel={computeLabel}
-              autoFitOnSceneChange
+              autoFitOnSceneChange={false}
+              fitSignal={fitSignal}
             />
           ) : (
             <SvgViewport
@@ -1378,7 +1423,7 @@ export function GalleryViewer() {
         ) : null}
 
         {sampleState.status === 'ready' && clampedControls.compare ? (
-          <div className="absolute inset-0 px-3 pb-3 pt-16">
+          <div className="absolute inset-0">
             <CompareLayout
               panels={comparePanels}
               renderer={clampedControls.renderer}
@@ -1404,41 +1449,14 @@ export function GalleryViewer() {
         onResetView={() => mainViewportRef.current?.resetView()}
       />
 
-      <AnimatePresence>
-        {chromeVisible ? (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            className="pointer-events-none fixed left-3 right-3 top-3 z-30 flex items-start justify-between"
-          >
-            <div className="pointer-events-auto mt-14 rounded-lg border border-slate-400/30 bg-slate-900/70 px-3 py-1 text-xs text-slate-200 backdrop-blur">
-              <Link className="underline" to="/gallery">Gallery</Link> / {dataset.name}
-            </div>
-            <div className="pointer-events-auto flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-label="Open controls"
-                onClick={() => setControlsOpen(true)}
-              >
-                Controls
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-label="Open report"
-                onClick={() => {
-                  setReportOpen(true);
-                  setTab('report');
-                }}
-              >
-                Report
-              </Button>
-            </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+      <TopRightActions
+        visible={chromeVisible}
+        onControls={() => setControlsOpen(true)}
+        onReport={() => {
+          setReportOpen(true);
+          setTab('report');
+        }}
+      />
 
       <AnimatePresence>
         {chromeVisible ? (
@@ -1529,10 +1547,6 @@ export function GalleryViewer() {
       </Sheet>
 
       <AttributionModal open={attributionOpen} onOpenChange={setAttributionOpen} datasets={datasets} />
-
-      <div className="pointer-events-none fixed bottom-3 right-3 z-30 rounded-md border border-slate-400/30 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-300">
-        <Badge variant={viewerStatus.tone}>{viewerStatus.text}</Badge>
-      </div>
 
       {!cinema ? (
         <div className="pointer-events-auto fixed bottom-3 left-3 z-30">

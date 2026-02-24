@@ -76,7 +76,6 @@ export function CompareLayout({
                   else setPanelCamera((prev) => ({ ...prev, [panel.id]: next }));
                 }}
                 onInteraction={onInteraction}
-                rendererLabel={panel.title}
                 autoFitOnSceneChange={!camera}
               />
             ) : (

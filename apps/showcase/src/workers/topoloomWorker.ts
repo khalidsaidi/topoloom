@@ -1,16 +1,23 @@
 import { GraphBuilder } from '@khalidsaidi/topoloom/graph';
 import { testPlanarity } from '@khalidsaidi/topoloom/planarity';
-import { buildHalfEdgeMesh } from '@khalidsaidi/topoloom/embedding';
-import { orthogonalLayout, planarizationLayout, planarStraightLine } from '@khalidsaidi/topoloom/layout';
+import { buildHalfEdgeMesh, type RotationSystem } from '@khalidsaidi/topoloom/embedding';
+import { orthogonalLayout, planarizationLayout } from '@khalidsaidi/topoloom/layout';
 import { biconnectedComponents } from '@khalidsaidi/topoloom/dfs';
 import { spqrDecomposeSafe } from '@khalidsaidi/topoloom/decomp';
 
 import type { DatasetMode } from '@/data/datasets';
-import type { WorkerComputePayload, WorkerPartial, WorkerResult, WorkerStage } from '@/lib/workerClient';
+import type {
+  BoundarySelection,
+  WorkerComputePayload,
+  WorkerPartial,
+  WorkerResult,
+  WorkerStage,
+} from '@/lib/workerClient';
 
 const HARD_NODE_CAP = 350;
 const HARD_EDGE_CAP = 1200;
 const COORD_LIMIT = 1e7;
+const MIN_SOLVER_STAGE_MS = 920;
 
 type ComputeRequestMessage = {
   type: 'compute';
@@ -55,6 +62,8 @@ type SampleResult = {
   components: number;
   maxDegree: number;
 };
+
+type Point = { x: number; y: number };
 
 const cancelledRequests = new Set<string>();
 
@@ -199,6 +208,245 @@ function deterministicSample(
     components: stats.components,
     maxDegree: stats.maxDegree,
   };
+}
+
+function hash32(input: string) {
+  let h = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+const fract = (value: number) => value - Math.floor(value);
+
+function deterministicHairballPoint(datasetId: string, sampleId: string, seed: number, id: number, n: number): Point {
+  const key = `${datasetId}:${sampleId}:${seed}:${id}`;
+  const h = hash32(key) / 4294967296;
+  const h2 = hash32(`${key}:j`) / 4294967296;
+  const radiusMax = 260 + Math.sqrt(Math.max(1, n)) * 18;
+  const angle = Math.PI * 2 * fract(h);
+  const radius = Math.pow(fract(h * 1.7), 0.35) * radiusMax;
+  const jitterAngle = Math.PI * 2 * fract(h2 * 1.13);
+  const jitterMag = 7 + fract(h2 * 3.7) * 11;
+  return {
+    x: Math.cos(angle) * radius + Math.cos(jitterAngle) * jitterMag,
+    y: Math.sin(angle) * radius + Math.sin(jitterAngle) * jitterMag,
+  };
+}
+
+function uniqueCycle(vertices: number[]) {
+  const cycle: number[] = [];
+  for (const vertex of vertices) {
+    if (cycle.length === 0 || cycle[cycle.length - 1] !== vertex) cycle.push(vertex);
+  }
+  if (cycle.length > 1 && cycle[0] === cycle[cycle.length - 1]) cycle.pop();
+  return cycle;
+}
+
+function getFaceBoundary(mesh: ReturnType<typeof buildHalfEdgeMesh>, faceId: number): number[] {
+  const cycle = mesh.faces[faceId] ?? [];
+  return uniqueCycle(cycle.map((halfEdge) => mesh.origin[halfEdge] ?? 0));
+}
+
+function chooseBoundaryFace(
+  mesh: ReturnType<typeof buildHalfEdgeMesh>,
+  strategy: BoundarySelection,
+): number {
+  if (mesh.faces.length === 0) return 0;
+
+  const vertexCount = Math.max(0, ...mesh.origin) + 1;
+  const target = Math.max(3, Math.sqrt(Math.max(1, vertexCount)) * 4);
+  const low = Math.max(3, Math.floor(Math.min(20, vertexCount / 6)));
+  const high = Math.max(low, Math.floor(Math.min(80, vertexCount / 2)));
+
+  const candidates = mesh.faces
+    .map((_, faceId) => ({
+      faceId,
+      len: getFaceBoundary(mesh, faceId).length,
+    }))
+    .filter((candidate) => candidate.len >= 3);
+
+  if (candidates.length === 0) return 0;
+
+  if (strategy === 'largest') {
+    return candidates.reduce((best, next) => (next.len > best.len ? next : best)).faceId;
+  }
+
+  if (strategy === 'small') {
+    return candidates.reduce((best, next) => (next.len < best.len ? next : best)).faceId;
+  }
+
+  const closestToTarget = (items: typeof candidates) => {
+    return items
+      .slice()
+      .sort((a, b) => {
+        const da = Math.abs(a.len - target);
+        const db = Math.abs(b.len - target);
+        if (da !== db) return da - db;
+        if (a.len !== b.len) return a.len - b.len;
+        return a.faceId - b.faceId;
+      })[0]!.faceId;
+  };
+
+  if (strategy === 'medium') {
+    return closestToTarget(candidates);
+  }
+
+  const preferred = candidates.filter((candidate) => candidate.len >= low && candidate.len <= high);
+  return closestToTarget(preferred.length > 0 ? preferred : candidates);
+}
+
+function buildLayoutFromPositions(
+  mesh: ReturnType<typeof buildHalfEdgeMesh>,
+  positions: Map<number, Point>,
+) {
+  const edges: Array<{ edge: number; points: Point[] }> = [];
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  const updateBounds = (point: Point) => {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  };
+
+  for (const point of positions.values()) {
+    updateBounds(point);
+  }
+
+  for (let edgeId = 0; edgeId < mesh.halfEdgeCount / 2; edgeId += 1) {
+    const h0 = edgeId * 2;
+    const h1 = edgeId * 2 + 1;
+    const u = mesh.origin[h0] ?? 0;
+    const v = mesh.origin[h1] ?? 0;
+    const p1 = positions.get(u) ?? { x: 0, y: 0 };
+    const p2 = positions.get(v) ?? { x: 0, y: 0 };
+    edges.push({
+      edge: edgeId,
+      points: [p1, p2],
+    });
+    updateBounds(p1);
+    updateBounds(p2);
+  }
+
+  if (!Number.isFinite(minX)) minX = 0;
+  if (!Number.isFinite(minY)) minY = 0;
+  if (!Number.isFinite(maxX)) maxX = 0;
+  if (!Number.isFinite(maxY)) maxY = 0;
+
+  return {
+    positions,
+    edges,
+    stats: {
+      bends: 0,
+      area: Math.max(0, maxX - minX) * Math.max(0, maxY - minY),
+      crossings: 0,
+    },
+  };
+}
+
+function toPositionPartial(positions: Point[]) {
+  return positions.map((point, id) => [id, clampCoordinate(point.x), clampCoordinate(point.y)] as [number, number, number]);
+}
+
+async function sleepWithCancel(requestId: string, ms: number) {
+  if (ms <= 0) return;
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(() => resolve(), ms);
+    if (cancelledRequests.has(requestId)) {
+      clearTimeout(timer);
+      resolve();
+    }
+  });
+  checkCancelled(requestId);
+}
+
+async function runRelaxationSolver(args: {
+  requestId: string;
+  datasetId: string;
+  sampleId: string;
+  seed: number;
+  nodeCount: number;
+  adjacency: number[][];
+  boundary: number[];
+  stream: boolean;
+}) {
+  const { requestId, datasetId, sampleId, seed, nodeCount, adjacency, boundary, stream } = args;
+  const positions = Array.from({ length: nodeCount }, (_, id) =>
+    deterministicHairballPoint(datasetId, sampleId, seed, id, nodeCount),
+  );
+
+  const boundarySet = new Set(boundary);
+  const boundaryRadius = Math.max(120, boundary.length * 10 + Math.sqrt(Math.max(1, nodeCount)) * 10);
+  boundary.forEach((vertex, index) => {
+    const angle = (index / Math.max(1, boundary.length)) * Math.PI * 2;
+    positions[vertex] = {
+      x: Math.cos(angle) * boundaryRadius,
+      y: Math.sin(angle) * boundaryRadius,
+    };
+  });
+
+  const interior = Array.from({ length: nodeCount }, (_, id) => id).filter((id) => !boundarySet.has(id));
+  const iterMax = nodeCount <= 220 ? 42 : 36;
+  const emitEvery = 3;
+  const emitCount = Math.max(1, Math.ceil(iterMax / emitEvery));
+  const pacing = stream ? Math.max(0, Math.floor(MIN_SOLVER_STAGE_MS / emitCount) - 2) : 0;
+
+  if (stream) {
+    postPartial(requestId, {
+      kind: 'positions',
+      positions: toPositionPartial(positions),
+      iter: 0,
+    });
+  }
+
+  for (let iter = 1; iter <= iterMax; iter += 1) {
+    checkCancelled(requestId);
+    const next = positions.map((point) => ({ ...point }));
+    for (const vertex of interior) {
+      const neighbors = adjacency[vertex] ?? [];
+      if (neighbors.length === 0) continue;
+      let sumX = 0;
+      let sumY = 0;
+      for (const neighbor of neighbors) {
+        const point = positions[neighbor] ?? { x: 0, y: 0 };
+        sumX += point.x;
+        sumY += point.y;
+      }
+      const avgX = sumX / neighbors.length;
+      const avgY = sumY / neighbors.length;
+      next[vertex] = {
+        x: positions[vertex]!.x * 0.36 + avgX * 0.64,
+        y: positions[vertex]!.y * 0.36 + avgY * 0.64,
+      };
+    }
+    for (let id = 0; id < nodeCount; id += 1) {
+      positions[id] = next[id]!;
+    }
+
+    if (stream && (iter % emitEvery === 0 || iter === iterMax)) {
+      postPartial(requestId, {
+        kind: 'positions',
+        positions: toPositionPartial(positions),
+        iter,
+      });
+      await sleepWithCancel(requestId, pacing);
+    }
+  }
+
+  const map = new Map<number, Point>();
+  positions.forEach((point, id) => {
+    map.set(id, {
+      x: clampCoordinate(point.x),
+      y: clampCoordinate(point.y),
+    });
+  });
+  return map;
 }
 
 function checkCancelled(requestId: string) {
@@ -354,7 +602,7 @@ export async function computeWorkerResult(
       (visitedNodeIds) => {
         checkCancelled(requestId);
         postPartial(requestId, {
-          kind: 'sample',
+          kind: 'sampleVisited',
           visited: visitedNodeIds,
         });
       },
@@ -395,15 +643,25 @@ export async function computeWorkerResult(
     });
   }
 
-  const embeddingBundle = await trackStage('embedding', 'building embedding + face mesh', () => {
-    if (!planarityResult.planar) {
+  const embeddingRotation = await trackStage<RotationSystem | null>(
+    'embedding',
+    'resolving deterministic rotation system',
+    () => {
+      if (!planarityResult.planar || !('embedding' in planarityResult)) {
+        return null;
+      }
+      return planarityResult.embedding;
+    },
+  );
+
+  const meshBundle = await trackStage('mesh', 'building half-edge mesh', () => {
+    if (!embeddingRotation) {
       return {
         mesh: null as ReturnType<typeof buildHalfEdgeMesh> | null,
         faces: undefined as WorkerResult['report']['faces'] | undefined,
       };
     }
-
-    const mesh = buildHalfEdgeMesh(graphBundle.graph, planarityResult.embedding);
+    const mesh = buildHalfEdgeMesh(graphBundle.graph, embeddingRotation);
     const sizes = mesh.faces.map((cycle) => cycle.length).sort((a, b) => a - b);
     const faces = {
       count: mesh.faces.length,
@@ -421,14 +679,29 @@ export async function computeWorkerResult(
     };
   });
 
-  const layoutBundle = await trackStage('layout', 'computing layout', () => {
+  const layoutBundle = await trackStage('layout', 'computing layout', async () => {
     const resolvedMode = resolveMode(payload.settings.mode, Boolean(planarityResult.planar));
+    const liveSolve = payload.settings.liveSolve === true;
+    const adjacency = buildAdjacency(sampled.nodes.length, sampled.edges);
+    const boundaryStrategy = payload.settings.boundarySelection ?? 'auto';
 
     if (resolvedMode === 'planar-straight') {
-      if (!embeddingBundle.mesh) {
+      if (!meshBundle.mesh) {
         throw new Error('Planar straight-line layout requires planar embedding.');
       }
-      const layout = planarStraightLine(embeddingBundle.mesh);
+      const faceId = chooseBoundaryFace(meshBundle.mesh, boundaryStrategy);
+      const boundary = getFaceBoundary(meshBundle.mesh, faceId);
+      const positions = await runRelaxationSolver({
+        requestId,
+        datasetId: payload.datasetId,
+        sampleId: payload.sampleId,
+        seed: payload.settings.seed,
+        nodeCount: sampled.nodes.length,
+        adjacency,
+        boundary,
+        stream: liveSolve,
+      });
+      const layout = buildLayoutFromPositions(meshBundle.mesh, positions);
       return {
         mode: resolvedMode,
         layout,
@@ -436,14 +709,43 @@ export async function computeWorkerResult(
     }
 
     if (resolvedMode === 'orthogonal') {
-      if (!embeddingBundle.mesh) {
+      if (!meshBundle.mesh) {
         throw new Error('Orthogonal layout requires planar embedding.');
       }
-      const layout = orthogonalLayout(embeddingBundle.mesh);
+      if (liveSolve) {
+        const faceId = chooseBoundaryFace(meshBundle.mesh, boundaryStrategy);
+        const boundary = getFaceBoundary(meshBundle.mesh, faceId);
+        await runRelaxationSolver({
+          requestId,
+          datasetId: payload.datasetId,
+          sampleId: payload.sampleId,
+          seed: payload.settings.seed,
+          nodeCount: sampled.nodes.length,
+          adjacency,
+          boundary,
+          stream: true,
+        });
+      }
+      const layout = orthogonalLayout(meshBundle.mesh);
       return {
         mode: resolvedMode,
         layout,
       };
+    }
+
+    if (liveSolve) {
+      const fallbackBoundaryLength = Math.max(6, Math.min(sampled.nodes.length, Math.floor(Math.sqrt(sampled.nodes.length) * 3)));
+      const boundary = Array.from({ length: fallbackBoundaryLength }, (_, i) => i);
+      await runRelaxationSolver({
+        requestId,
+        datasetId: payload.datasetId,
+        sampleId: payload.sampleId,
+        seed: payload.settings.seed,
+        nodeCount: sampled.nodes.length,
+        adjacency,
+        boundary,
+        stream: true,
+      });
     }
 
     if (resolvedMode === 'planarization-straight') {
@@ -462,10 +764,11 @@ export async function computeWorkerResult(
   });
 
   postPartial(requestId, {
-    kind: 'layoutTarget',
+    kind: 'positions',
     positions: [...layoutBundle.layout.positions.entries()]
       .map(([id, point]) => [id, clampCoordinate(point.x), clampCoordinate(point.y)] as [number, number, number])
       .sort((a, b) => a[0] - b[0]),
+    iter: 9999,
   });
 
   const reportBundle = await trackStage('report', 'collecting report-card metrics', () => {
@@ -535,10 +838,10 @@ export async function computeWorkerResult(
       planarity: {
         isPlanar: Boolean(planarityResult.planar),
         ...(witness ? { witness } : {}),
-        embeddingAvailable: Boolean(embeddingBundle.mesh),
+        embeddingAvailable: Boolean(meshBundle.mesh),
       },
       report: {
-        ...(embeddingBundle.faces ? { faces: embeddingBundle.faces } : {}),
+        ...(meshBundle.faces ? { faces: meshBundle.faces } : {}),
         biconnected: reportBundle.biconnected,
         ...(reportBundle.spqr ? { spqr: reportBundle.spqr } : {}),
       },

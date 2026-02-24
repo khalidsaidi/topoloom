@@ -63,8 +63,8 @@ void main() {
   float isBridge = hasBit(v_flags, 4.0);
   float isFaceBoundary = hasBit(v_flags, 8.0);
 
-  vec3 color = vec3(0.72, 0.8, 0.91);
-  float alpha = 0.94 * u_alpha;
+  vec3 color = vec3(0.79, 0.86, 0.96);
+  float alpha = 0.98 * u_alpha;
 
   if (isBridge > 0.5) {
     color = vec3(0.98, 0.75, 0.18);
@@ -73,14 +73,14 @@ void main() {
   }
 
   if (isWitness > 0.5) {
-    float pulse = 0.65 + 0.35 * sin(u_time * 0.012);
+    float pulse = 0.75 + 0.25 * sin(u_time * 0.012);
     color = vec3(1.0, 0.28, 0.28) * pulse;
     alpha = 1.0 * u_alpha;
   }
 
   if (isFaceBoundary > 0.5) {
     color = vec3(0.24, 0.92, 0.92);
-    alpha = 0.68 * u_alpha;
+    alpha = 0.74 * u_alpha;
   }
 
   if (u_routePass) {

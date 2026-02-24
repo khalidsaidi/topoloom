@@ -1,8 +1,7 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 import type { CameraTransform, RendererFrameState, RendererSceneInput } from '@/gl/GraphRenderer';
 import { GraphRenderer } from '@/gl/GraphRenderer';
-import { Button } from '@/ui/Button';
 import { cn } from '@/lib/utils';
 
 export type WebGLViewportHandle = {
@@ -28,8 +27,8 @@ export type WebGLViewportProps = {
   onNodePick?: (nodeId: number | null) => void;
   onFrameState?: (state: RendererFrameState) => void;
   onInteraction?: () => void;
-  rendererLabel?: string;
   autoFitOnSceneChange?: boolean;
+  fitSignal?: number;
 };
 
 type PointerPoint = { x: number; y: number };
@@ -42,11 +41,18 @@ function clampScale(scale: number) {
   return Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale));
 }
 
-function fitCameraToBbox(bbox: ViewportBBox, width: number, height: number, padding = 28): CameraTransform {
+function fitCameraToBbox(
+  bbox: ViewportBBox,
+  width: number,
+  height: number,
+  paddingRatio = 0.1,
+): CameraTransform {
   const graphWidth = Math.max(1, bbox.maxX - bbox.minX);
   const graphHeight = Math.max(1, bbox.maxY - bbox.minY);
-  const availW = Math.max(1, width - padding * 2);
-  const availH = Math.max(1, height - padding * 2);
+  const paddingX = Math.max(12, width * paddingRatio);
+  const paddingY = Math.max(12, height * paddingRatio);
+  const availW = Math.max(1, width - paddingX * 2);
+  const availH = Math.max(1, height - paddingY * 2);
   const scale = clampScale(Math.min(availW / graphWidth, availH / graphHeight));
   const cx = (bbox.minX + bbox.maxX) / 2;
   const cy = (bbox.minY + bbox.maxY) / 2;
@@ -67,8 +73,8 @@ export const WebGLViewport = forwardRef<WebGLViewportHandle, WebGLViewportProps>
     onNodePick,
     onFrameState,
     onInteraction,
-    rendererLabel = 'WebGL2 renderer',
     autoFitOnSceneChange = true,
+    fitSignal,
   },
   ref,
 ) {
@@ -177,6 +183,12 @@ export const WebGLViewport = forwardRef<WebGLViewportHandle, WebGLViewportProps>
     rendererRef.current?.resize(size.width, size.height, window.devicePixelRatio || 1);
   }, [size.height, size.width]);
 
+  useEffect(() => {
+    if (fitSignal === undefined) return;
+    fitCurrent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitSignal]);
+
   useImperativeHandle(ref, () => ({
     captureImageData: (scale = 2) => rendererRef.current?.captureImageData(scale) ?? null,
     getCamera: () => ({ ...resolvedCamera }),
@@ -272,15 +284,10 @@ export const WebGLViewport = forwardRef<WebGLViewportHandle, WebGLViewportProps>
     setCamera(zoomAtPoint(resolvedCamera, point, 1.25));
   };
 
-  const cameraLabel = useMemo(
-    () => `${resolvedCamera.scale.toFixed(2)}x`,
-    [resolvedCamera.scale],
-  );
-
   return (
     <div
       ref={wrapperRef}
-      className={cn('relative h-full w-full overflow-hidden rounded-xl border bg-black/95', className)}
+      className={cn('relative h-full w-full overflow-hidden bg-black/95', className)}
     >
       <canvas
         ref={canvasRef}
@@ -293,18 +300,6 @@ export const WebGLViewport = forwardRef<WebGLViewportHandle, WebGLViewportProps>
         onDoubleClick={onDoubleClick}
         aria-label="WebGL graph viewport"
       />
-      <div className="pointer-events-none absolute left-3 top-3 rounded-md border border-white/20 bg-black/55 px-2 py-1 text-[11px] text-white/85">
-        {rendererLabel} • {cameraLabel}
-      </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        className="absolute right-3 top-3 border-white/30 bg-black/55 text-white hover:bg-black/70"
-        onClick={fitCurrent}
-      >
-        Reset view
-      </Button>
     </div>
   );
 });

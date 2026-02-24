@@ -61,10 +61,10 @@ const QUAD = new Float32Array([
 const SELECTED_BIT = 16;
 
 function degreeToSize(degree: number) {
-  if (degree <= 2) return 3.5;
-  if (degree <= 4) return 4.6;
-  if (degree <= 8) return 5.6;
-  return 6.6;
+  if (degree <= 2) return 4.2;
+  if (degree <= 4) return 5.3;
+  if (degree <= 8) return 6.4;
+  return 7.6;
 }
 
 function createMatFromCamera(camera: CameraTransform, out = mat3.create()) {
@@ -410,7 +410,7 @@ export class GraphRenderer {
     this.edgeWidth = new Float32Array(this.edgeCount);
     scene.edges.forEach((edge, index) => {
       this.edgeFlags[index] = edge.flags ?? 0;
-      this.edgeWidth[index] = hasBit(this.edgeFlags[index] ?? 0, 1) ? 3 : 1.8;
+      this.edgeWidth[index] = hasBit(this.edgeFlags[index] ?? 0, 1) ? 3.6 : 1.55;
       this.edgeVisible[index] = 1;
     });
 
@@ -426,7 +426,7 @@ export class GraphRenderer {
       this.routeEnd[index * 2 + 1] = segment.b.y;
       this.routeFlags[index] = segment.flags ?? 0;
       this.routeVisible[index] = 1;
-      this.routeWidth[index] = segment.width ?? 1.5;
+      this.routeWidth[index] = segment.width ?? 1.9;
     });
 
     this.uploadNodeBuffers();
@@ -502,7 +502,7 @@ export class GraphRenderer {
       this.routeEnd[index * 2 + 1] = segment.b.y;
       this.routeFlags[index] = segment.flags ?? 0;
       this.routeVisible[index] = segment.visible === false ? 0 : 1;
-      this.routeWidth[index] = segment.width ?? 1.5;
+      this.routeWidth[index] = segment.width ?? 1.9;
     });
     this.uploadTargetBuffer();
     this.uploadRouteBuffers();
@@ -635,7 +635,7 @@ export class GraphRenderer {
   private drawScene(timeMs: number, width: number, height: number, camera: mat3) {
     const gl = this.gl;
     gl.viewport(0, 0, width, height);
-    gl.clearColor(0.01, 0.02, 0.05, 1);
+    gl.clearColor(0.02, 0.03, 0.07, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.setCommonGlState();
 
@@ -647,14 +647,14 @@ export class GraphRenderer {
 
     this.drawPass(this.edgeProgram, this.edgeVao, this.edgeCount, {
       ...common,
-      u_alpha: 1,
+      u_alpha: this.finalDeterministic ? 1 : 0.96,
       u_routePass: false,
     });
 
     if (this.routeCount > 0) {
       this.drawPass(this.edgeProgram, this.routeVao, this.routeCount, {
         ...common,
-        u_alpha: Math.max(0.4, this.morph),
+        u_alpha: this.morphing ? Math.max(0.46, this.morph) : 0.98,
         u_routePass: true,
       });
     }
@@ -664,7 +664,7 @@ export class GraphRenderer {
       u_morph: this.morph,
       u_preview: !this.finalDeterministic,
       u_glow: true,
-      u_glowScale: 2.1,
+      u_glowScale: 2.5,
     });
 
     this.drawPass(this.nodeProgram, this.nodeVao, this.nodeCount, {

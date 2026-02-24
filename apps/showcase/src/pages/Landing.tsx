@@ -194,7 +194,6 @@ export function Landing() {
               bbox={hero.bbox}
               camera={camera}
               onCameraChange={setCamera}
-              rendererLabel="Naive"
             />
             <div
               className="absolute inset-0"
@@ -206,7 +205,6 @@ export function Landing() {
                 bbox={hero.bbox}
                 camera={camera}
                 onCameraChange={setCamera}
-                rendererLabel="TopoLoom"
               />
             </div>
 
