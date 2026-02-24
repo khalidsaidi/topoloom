@@ -100,9 +100,7 @@ export const WebGLViewport = forwardRef<WebGLViewportHandle, WebGLViewportProps>
       translateX: next.translateX,
       translateY: next.translateY,
     };
-    if (!camera) {
-      setInternalCamera(sanitized);
-    }
+    setInternalCamera(sanitized);
     onCameraChange?.(sanitized);
     rendererRef.current?.setCameraTransform(sanitized);
   };

@@ -1222,9 +1222,27 @@ export function GalleryViewer() {
     };
 
     try {
+      const introMs = reducedMotion ? 160 : 760;
+      if (introMs > 0) {
+        await new Promise<void>((resolve) => {
+          const timer = window.setTimeout(() => resolve(), introMs);
+          abort.signal.addEventListener(
+            'abort',
+            () => {
+              window.clearTimeout(timer);
+              resolve();
+            },
+            { once: true },
+          );
+        });
+      }
+      if (abort.signal.aborted) {
+        throw new Error('Computation cancelled');
+      }
+
       const primary = await computeForMode(clampedControls.mode, true);
 
-      const minimumPreviewMs = reducedMotion ? 260 : 760;
+      const minimumPreviewMs = reducedMotion ? 360 : 1800;
       const elapsed = performance.now() - startedAt;
       if (elapsed < minimumPreviewMs) {
         await new Promise((resolve) => {

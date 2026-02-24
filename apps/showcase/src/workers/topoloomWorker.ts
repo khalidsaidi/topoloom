@@ -17,7 +17,7 @@ import type {
 const HARD_NODE_CAP = 350;
 const HARD_EDGE_CAP = 1200;
 const COORD_LIMIT = 1e7;
-const MIN_SOLVER_STAGE_MS = 920;
+const MIN_SOLVER_STAGE_MS = 2200;
 
 type ComputeRequestMessage = {
   type: 'compute';
