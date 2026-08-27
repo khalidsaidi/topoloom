@@ -1,0 +1,28 @@
+{
+  "name": "topoloom-react-flow-example",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "//": "Bump @khalidsaidi/topoloom to ^0.3.0 once it is published, then replace src/topoloom-react-flow.ts with: import { toReactFlow } from '@khalidsaidi/topoloom/react-flow'",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@khalidsaidi/topoloom": "0.2.7",
+    "@xyflow/react": "^12.8.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  },
+  "stackblitz": {
+    "startCommand": "npm run dev"
+  }
+}

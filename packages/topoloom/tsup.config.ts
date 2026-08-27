@@ -12,6 +12,7 @@ export default defineConfig({
     'src/order/index.ts',
     'src/flow/index.ts',
     'src/layout/index.ts',
+    'src/react-flow/index.ts',
   ],
   format: ['esm'],
   dts: true,

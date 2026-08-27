@@ -61,6 +61,11 @@
       "types": "./dist/layout/index.d.ts",
       "import": "./dist/layout/index.js",
       "default": "./dist/layout/index.js"
+    },
+    "./react-flow": {
+      "types": "./dist/react-flow/index.d.ts",
+      "import": "./dist/react-flow/index.js",
+      "default": "./dist/react-flow/index.js"
     }
   },
   "scripts": {
@@ -103,6 +108,9 @@
     "st-numbering",
     "orthogonal-drawing",
     "min-cost-flow",
-    "planarization"
+    "planarization",
+    "react-flow",
+    "reactflow",
+    "xyflow"
   ]
 }

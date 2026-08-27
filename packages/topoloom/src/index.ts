@@ -7,3 +7,4 @@ export * as decomp from './decomp';
 export * as order from './order';
 export * as flow from './flow';
 export * as layout from './layout';
+export * as reactFlow from './react-flow';

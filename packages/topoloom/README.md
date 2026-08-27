@@ -41,11 +41,41 @@ const svg = [...drawing.positions]
 
 `drawing.edges` holds the matching orthogonal edge paths (polyline `points` in the same coordinate space), and `drawing.stats` reports bends / area / crossings. Nonplanar input is handled automatically: edges that can't be embedded are routed through the dual graph and crossings become dummy vertices (ids ≥ `g.vertexCount()`, `g.label(v) === null`).
 
+## Use with React Flow
+
+TopoLoom ships a zero-dependency adapter that converts a layout result straight into React Flow's `nodes` / `edges` arrays (numeric `VertexId`s are mapped back to your labels automatically):
+
+```jsx
+import { ReactFlow } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import { graph, layout } from '@khalidsaidi/topoloom';
+import { toReactFlow } from '@khalidsaidi/topoloom/react-flow';
+
+const g = graph.fromEdgeList([
+  ['app', 'db'], ['app', 'cache'], ['db', 'cache'],
+  ['app', 'queue'], ['queue', 'db'], ['cache', 'queue'],
+]);
+
+const result = layout.planarizationLayout(g, { mode: 'orthogonal' });
+const { nodes, edges } = toReactFlow(result, g, {
+  scale: 7,            // stretch the compact grid to on-screen pixels
+  nodeWidth: 104,      // your node size — positions get centered on the
+  nodeHeight: 36,      // layout point (React Flow anchors at top-left)
+});
+
+export default () => <ReactFlow nodes={nodes} edges={edges} fitView />;
+```
+
+Edges with orthogonal bends default to React Flow's `smoothstep` type (closest built-in look, zero extra code); the exact routed polyline is preserved on `edge.data.points` / `edge.data.bendPoints` if you want a custom edge component that draws the true right-angle route. Dummy crossing vertices from planarization are never emitted as nodes — they surface only as bend points.
+
+**Try it live (no account needed):** https://stackblitz.com/github/khalidsaidi/topoloom/tree/main/examples/react-flow — or browse [`examples/react-flow`](https://github.com/khalidsaidi/topoloom/tree/main/examples/react-flow).
+
 ## Which entry point do I want?
 
 | I want… | Use |
 | --- | --- |
 | A diagram layout (coordinates for any graph) | `layout.planarizationLayout(g, { mode: 'orthogonal' \| 'straight' })` |
+| React Flow `nodes` / `edges` from a layout | `toReactFlow(result, g, opts)` from `@khalidsaidi/topoloom/react-flow` |
 | Is this graph planar? (+ K5/K3,3 witness or embedding) | `planarity.testPlanarity(g)` |
 | A planar straight-line drawing from an embedding | `layout.planarStraightLine(mesh)` |
 | An orthogonal drawing from an embedding | `layout.orthogonalLayout(mesh)` |
