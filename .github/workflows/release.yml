@@ -1,0 +1,44 @@
+# TopoLoom npm release workflow (tag-driven, npm trusted publishing via OIDC)
+name: Release to npm on tag
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # required for npm trusted publishing (OIDC)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
+      - name: Ensure npm supports trusted publishing (>= 11.5.1)
+        run: |
+          npm install -g npm@latest
+          npm --version
+      - run: pnpm install
+      - run: pnpm --filter @khalidsaidi/topoloom typecheck
+      - run: pnpm --filter @khalidsaidi/topoloom test
+      - run: pnpm --filter @khalidsaidi/topoloom build
+      - name: Verify tag matches package version
+        working-directory: packages/topoloom
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package version $PKG_VERSION" >&2
+            exit 1
+          fi
+      - name: Publish
+        working-directory: packages/topoloom
+        run: npm publish

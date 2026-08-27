@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.0 — 2026-08-27
+- Decomp: add `spqrDecomposeSafe`, `spqrDecomposeAll`, and `SPQRForest` for whole-graph SPQR decomposition across biconnected blocks.
+- Planarity: add pure-TypeScript backend and a `backend` option for choosing between the wasm (Edge Addition Planarity Suite) and TS implementations.
+- Layout: reduce ring bias via an outer-face heuristic and elliptical boundary; compact orthogonal grid options; relax input strictness (directed edges and self-loops handled by default).
+- Packaging: ship the Edge Addition Planarity Suite BSD-3-Clause notice (`third_party/eaps/`) in the npm tarball; add `default` export conditions so Node >= 20.19 `require()` of the package works.
+- CI: publish releases from `v*` tags via npm trusted publishing (OIDC) — no long-lived npm tokens.
+
 ## v0.2.7 — 2026-02-03
 - Remove directed-input rejection in orthogonal demo (treated as undirected for geometry).
 - Auto-repair SPQR and dual routing demos by selecting biconnected blocks / planar backbones.
