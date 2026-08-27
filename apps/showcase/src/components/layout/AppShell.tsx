@@ -17,7 +17,7 @@ export type AppShellProps = {
 export function AppShell({ children }: AppShellProps) {
   const { search, pathname } = useLocation();
   const { embed } = readDemoQuery(search);
-  const isCinemaRoute = pathname === '/' || pathname.startsWith('/gallery/');
+  const isCinemaRoute = pathname === '/' || pathname.startsWith('/gallery/') || pathname.startsWith('/theater');
   const useImmersiveShell = !embed && isCinemaRoute;
 
   return (

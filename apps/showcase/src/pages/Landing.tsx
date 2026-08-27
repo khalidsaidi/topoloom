@@ -291,6 +291,9 @@ export function Landing() {
               <Button asChild size="lg">
                 <Link to="/gallery">Try Real Data Gallery</Link>
               </Button>
+              <Button asChild variant="secondary" size="lg">
+                <Link to="/theater">Watch Algorithm Theater</Link>
+              </Button>
               <Button asChild variant="ghost" size="lg" className="border-white/40 bg-black/45 text-white hover:bg-black/70">
                 <Link to="/demo/planarity">Explore demos</Link>
               </Button>

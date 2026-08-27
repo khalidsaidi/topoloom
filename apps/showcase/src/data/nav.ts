@@ -34,6 +34,16 @@ export const navSections: NavSection[] = [
     ],
   },
   {
+    title: 'Experiences',
+    items: [
+      {
+        label: 'Algorithm Theater',
+        path: '/theater',
+        description: 'Three.js + Rapier cinematic walk-through of the full topology pipeline.',
+      },
+    ],
+  },
+  {
     title: 'Kernel Concepts',
     items: [
       { label: 'Rotation vs Half-Edge', path: '/concepts/rotation' },

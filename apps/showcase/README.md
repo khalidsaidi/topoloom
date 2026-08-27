@@ -4,6 +4,7 @@
 
 ## Commands
 - Dev: `pnpm -C apps/showcase dev`
+- Dev from WSL/Linux, open from Windows browser: `pnpm -C apps/showcase dev:windows` (binds `0.0.0.0`, starts at port `4173`)
 - Build: `pnpm -C apps/showcase build`
 - Preview: `pnpm -C apps/showcase preview`
 - Tests: `pnpm -C apps/showcase test`
@@ -16,8 +17,17 @@ From repo root:
 - Landing A/B slider uses styled primitives (no browser-default controls).
 - Landing CTAs are:
   - `Try Real Data Gallery` -> `/gallery`
+  - `Watch Algorithm Theater` -> `/theater`
   - `Explore demos` -> `/demo/planarity`
   - `API` -> `/api`
+- Algorithm Theater route (`/theater`) runs an immersive Three.js pipeline walkthrough:
+  - Hairball dynamics
+  - Planarity + witness
+  - Embedding + faces
+  - BC-tree + SPQR
+  - Dual routing
+  - Min-cost flow
+  - Final deterministic layout
 - Gallery index loads all curated datasets and “Why it’s hard” bullets.
 - Dataset viewer opens in cinema/fullscreen mode with WebGL2 rendering by default.
 - Graph area is full-bleed (no boxed viewport) and remains high-contrast/legible.

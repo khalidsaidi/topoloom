@@ -54,6 +54,9 @@ const GalleryIndex = lazy(() =>
 const GalleryViewer = lazy(() =>
   import('@/pages/GalleryViewer').then((m) => ({ default: m.GalleryViewer })),
 );
+const AlgorithmTheater = lazy(() =>
+  import('@/pages/AlgorithmTheater').then((m) => ({ default: m.AlgorithmTheater })),
+);
 
 export default function App() {
   return (
@@ -61,8 +64,8 @@ export default function App() {
       <AppShell>
         <Suspense
           fallback={(
-            <div className="rounded-2xl border bg-background/80 p-6 text-sm text-muted-foreground">
-              Loading TopoLoom…
+            <div className="fixed inset-x-4 top-4 z-50 rounded-2xl border border-slate-400/30 bg-slate-200/90 p-6 text-sm text-slate-600 shadow-2xl backdrop-blur">
+              Loading TopoLoom...
             </div>
           )}
         >
@@ -94,6 +97,7 @@ export default function App() {
             <Route path="/concepts/orthogonal-flow" element={<OrthogonalFlowConcept />} />
             <Route path="/gallery" element={<GalleryIndex />} />
             <Route path="/gallery/:datasetId" element={<GalleryViewer />} />
+            <Route path="/theater" element={<AlgorithmTheater />} />
             <Route path="/api" element={<Api />} />
           </Routes>
         </Suspense>

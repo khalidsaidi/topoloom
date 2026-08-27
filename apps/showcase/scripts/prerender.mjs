@@ -83,6 +83,25 @@ ${benchmarkTable()}
 <p style="font-size: 16px; line-height: 1.6; color: #cbd5e1">Guidance: planarity testing is sub-millisecond at this scale with the WASM backend; planarizationLayout is interactive-fine below roughly 500 edges (&lt;~350 ms here) — measure before shipping anything larger, since the maximal-planar-subgraph phase re-runs a planarity test per edge (quadratic-ish growth).</p>
 <p style="font-size: 15px; line-height: 2"><a href="/" style="color: #7dd3fc">Home</a> · <a href="/getting-started" style="color: #7dd3fc">Getting started</a> · <a href="https://github.com/khalidsaidi/topoloom" style="color: #7dd3fc">GitHub</a></p>`,
   },
+  {
+    path: '/theater',
+    title: 'Algorithm Theater — TopoLoom Pipeline in 3D',
+    description:
+      'A cinematic Three.js + Rapier walkthrough of the TopoLoom pipeline: hairball dynamics, planarity testing with witnesses, planar embedding and faces, BC-tree + SPQR decomposition, dual-graph routing, min-cost flow, and the final deterministic layout.',
+    content: `
+<h1 style="font-size: 32px; margin: 8px 0 16px">Algorithm Theater</h1>
+<p style="font-size: 16px; line-height: 1.6; color: #cbd5e1">An immersive, real-time 3D walkthrough of what TopoLoom actually computes. Each act runs the real kernel — not an animation of it — on a curated graph, then stages the result with Three.js rendering and Rapier physics:</p>
+<ol style="font-size: 16px; line-height: 1.8; color: #cbd5e1; padding-left: 24px">
+<li>Hairball dynamics — the raw graph under physics</li>
+<li>Planarity test — with K5/K3,3 witness highlighting</li>
+<li>Planar embedding — rotation system and faces</li>
+<li>BC-tree + SPQR decomposition</li>
+<li>Dual-graph routing</li>
+<li>Min-cost flow</li>
+<li>Final deterministic layout</li>
+</ol>
+<p style="font-size: 15px; line-height: 2"><a href="/" style="color: #7dd3fc">Home</a> · <a href="/getting-started" style="color: #7dd3fc">Getting started</a> · <a href="/benchmarks" style="color: #7dd3fc">Benchmarks</a> · <a href="https://github.com/khalidsaidi/topoloom" style="color: #7dd3fc">GitHub</a></p>`,
+  },
 ];
 
 const base = readFileSync(join(dist, 'index.html'), 'utf8');
@@ -150,7 +169,7 @@ for (const route of routes) {
 
 // Sitemap for the crawlable routes (SPA demo routes share the landing doc, so
 // list only the pages with distinct static documents plus key demo URLs).
-const sitemapPaths = ['/', '/getting-started', '/benchmarks'];
+const sitemapPaths = ['/', '/getting-started', '/benchmarks', '/theater'];
 const today = new Date().toISOString().slice(0, 10);
 const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
