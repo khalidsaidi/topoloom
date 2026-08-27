@@ -145,6 +145,31 @@ export class GraphBuilder {
   }
 }
 
+/**
+ * Friendly misuse guard for public entry points: verifies that `value` is a
+ * TopoLoom {@link Graph} (or at least walks like one) and throws an actionable
+ * TypeError instead of letting an internal error surface.
+ */
+export function assertGraph(value: unknown, apiName: string): asserts value is Graph {
+  if (value instanceof Graph) return;
+  const candidate = value as { vertices?: unknown; edges?: unknown; adjacency?: unknown } | null;
+  if (
+    candidate !== null &&
+    typeof candidate === 'object' &&
+    typeof candidate.vertices === 'function' &&
+    typeof candidate.edges === 'function' &&
+    typeof candidate.adjacency === 'function'
+  ) {
+    return;
+  }
+  const received =
+    value === null ? 'null' : Array.isArray(value) ? 'an array' : `type ${typeof value}`;
+  throw new TypeError(
+    `${apiName} expected a Graph — build one with fromEdgeList(...) (or GraphBuilder / fromAdjList / Graph.fromJSON) ` +
+      `from '@khalidsaidi/topoloom' and pass the result. Received ${received}.`,
+  );
+}
+
 export type EdgeListInput = Array<[string | number, string | number] | [string | number, string | number, boolean]>;
 
 export function fromEdgeList(edges: EdgeListInput): Graph {

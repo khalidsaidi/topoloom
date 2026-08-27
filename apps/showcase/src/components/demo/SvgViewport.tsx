@@ -12,6 +12,43 @@ export type SvgViewportProps = {
   onNodeMove?: (id: number, x: number, y: number) => void;
   onNodeClick?: (id: number) => void;
   className?: string;
+  /**
+   * Change this value to re-fit the viewport to the current content (e.g.
+   * pass the signature of a freshly computed layout). Reset view always
+   * re-fits regardless.
+   */
+  fitKey?: unknown;
+};
+
+type ViewBox = { x: number; y: number; w: number; h: number };
+
+const DEFAULT_BOX: ViewBox = { x: -200, y: -140, w: 400, h: 280 };
+
+const contentBox = (nodes: GraphNode[], edges: EdgePath[]): ViewBox => {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  nodes.forEach((node) => {
+    xs.push(node.x);
+    ys.push(node.y);
+  });
+  edges.forEach((edge) => {
+    edge.points.forEach((p) => {
+      xs.push(p.x);
+      ys.push(p.y);
+    });
+  });
+  if (xs.length === 0) return DEFAULT_BOX;
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const pad = Math.max(40, (maxX - minX) * 0.08, (maxY - minY) * 0.08);
+  return {
+    x: minX - pad,
+    y: minY - pad,
+    w: Math.max(1, maxX - minX) + pad * 2,
+    h: Math.max(1, maxY - minY) + pad * 2,
+  };
 };
 
 export function SvgViewport({
@@ -22,6 +59,7 @@ export function SvgViewport({
   onNodeMove,
   onNodeClick,
   className,
+  fitKey,
 }: SvgViewportProps) {
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -33,10 +71,38 @@ export function SvgViewport({
   const nodeStart = useRef<Point | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const prevCounts = useRef({ nodes: nodes.length, edges: edges.length });
+  const [baseBox, setBaseBox] = useState<ViewBox>(() => contentBox(nodes, edges));
+  const [lastFitKey, setLastFitKey] = useState<unknown>(fitKey);
 
-  const viewBox = useMemo(() => {
-    return `${-200 + offset.x} ${-140 + offset.y} ${400 / scale} ${280 / scale}`;
-  }, [offset, scale]);
+  const fitToContent = () => {
+    setBaseBox(contentBox(nodes, edges));
+    setScale(1);
+    setOffset({ x: 0, y: 0 });
+  };
+
+  // Re-fit whenever the caller signals fresh content (e.g. a computed layout).
+  // State adjustment during render, per the React "adjusting state when props
+  // change" pattern — avoids an extra effect-driven render pass.
+  if (lastFitKey !== fitKey) {
+    setLastFitKey(fitKey);
+    fitToContent();
+  }
+
+  const view = useMemo<ViewBox>(() => {
+    const w = baseBox.w / scale;
+    const h = baseBox.h / scale;
+    const cx = baseBox.x + baseBox.w / 2 + offset.x;
+    const cy = baseBox.y + baseBox.h / 2 + offset.y;
+    return { x: cx - w / 2, y: cy - h / 2, w, h };
+  }, [baseBox, offset, scale]);
+  const viewBox = `${view.x} ${view.y} ${view.w} ${view.h}`;
+
+  // World units moved per client pixel (keeps pan/drag speed correct for any zoom).
+  const worldPerPixel = () => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0) return 1 / scale;
+    return (baseBox.w / scale) / rect.width;
+  };
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -78,15 +144,16 @@ export function SvgViewport({
   };
 
   const onPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
+    const unit = worldPerPixel();
     if (panning && panStart.current) {
-      const dx = (event.clientX - panStart.current.x) / scale;
-      const dy = (event.clientY - panStart.current.y) / scale;
+      const dx = (event.clientX - panStart.current.x) * unit;
+      const dy = (event.clientY - panStart.current.y) * unit;
       setOffset((prev) => ({ x: prev.x - dx, y: prev.y - dy }));
       panStart.current = { x: event.clientX, y: event.clientY };
     }
     if (dragging !== null && nodeStart.current && onNodeMove) {
-      const dx = (event.clientX - nodeStart.current.x) / scale;
-      const dy = (event.clientY - nodeStart.current.y) / scale;
+      const dx = (event.clientX - nodeStart.current.x) * unit;
+      const dy = (event.clientY - nodeStart.current.y) * unit;
       onNodeMove(dragging, dx, dy);
       nodeStart.current = { x: event.clientX, y: event.clientY };
     }
@@ -118,10 +185,7 @@ export function SvgViewport({
       <button
         type="button"
         className="absolute right-3 top-3 z-10 rounded-md border bg-background/90 px-2 py-1 text-[10px] text-muted-foreground shadow-sm transition hover:text-foreground"
-        onClick={() => {
-          setScale(1);
-          setOffset({ x: 0, y: 0 });
-        }}
+        onClick={fitToContent}
       >
         Reset view
       </button>
@@ -138,7 +202,7 @@ export function SvgViewport({
             <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(148,163,184,0.25)" strokeWidth="0.5" />
           </pattern>
         </defs>
-        <rect width="100%" height="100%" fill="url(#grid)" />
+        <rect x={view.x} y={view.y} width={view.w} height={view.h} fill="url(#grid)" />
         {edges.map((edge) => {
           const highlight = highlightedEdges?.has(edge.edge) ?? false;
           const flash = flashEdges.has(edge.edge);

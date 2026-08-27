@@ -39,6 +39,13 @@ The live version of this table is published at <https://topoloom.web.app/benchma
 | hamm-add32 | 300 | 623 | yes | 0.43 ms | 0.53 ms | 299 ms | 0 |
 | hamm-add20 | 186 | 800 | no | 0.48 ms | 66.98 ms | *fails* | — |
 
+> **Note:** the `planarizationLayout` column measures the default `mode: 'straight'`;
+> `mode: 'orthogonal'` adds bend-minimization (min-cost flow) and compaction on top, so it
+> costs more — and on some inputs (e.g. disconnected graphs) its flow step can be
+> infeasible and throws an actionable error unless you pass `onInfeasible: 'fallback'`.
+> See [Known limits](#known-limits-honestly) and the package README's known-limitations
+> section.
+
 ## What the numbers mean
 
 **Planarity testing is effectively free at this scale.** The WASM backend stays at or
@@ -73,6 +80,11 @@ it on an interactive path — or run it in a worker.**
   pipeline on dense non-planar graphs.
 - All measurements were taken under WSL2 on a single machine. Browser numbers (where the
   showcase actually runs) will differ, typically by a small constant factor.
+- `mode: 'orthogonal'` (not measured above) handles bridges/trees correctly since 0.3.x;
+  for embeddings where its bend flow is still infeasible (e.g. disconnected inputs) it
+  throws `OrthogonalInfeasibleError` with next steps, or downgrades to straight mode —
+  recorded as `stats.mode === 'straight-fallback'` — when called with
+  `onInfeasible: 'fallback'`. It never downgrades silently.
 
 ## Reproducing
 

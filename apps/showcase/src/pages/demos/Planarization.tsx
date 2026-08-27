@@ -114,6 +114,7 @@ export function PlanarizationDemo() {
           <StatsPanel crossings={result?.remainingEdges?.length ?? 0} runtimeMs={runtimeMs} />
           <SvgViewport
             nodes={nodes}
+            fitKey={showComputed ? computedSig : null}
             edges={showComputed && result ? [...baseEdges, ...remainingEdges] : previewEdges}
             highlightedEdges={showComputed ? new Set(result?.remainingEdges ?? []) : undefined}
             highlightedNodes={selectedNodeId !== null ? new Set([selectedNodeId]) : undefined}

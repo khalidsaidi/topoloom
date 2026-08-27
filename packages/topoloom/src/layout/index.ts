@@ -1,13 +1,15 @@
-import { GraphBuilder } from '../graph';
+import { GraphBuilder, assertGraph } from '../graph';
 import type { Graph, EdgeId, VertexId } from '../graph';
 import { buildHalfEdgeMesh, selectOuterFace } from '../embedding';
-import type { HalfEdgeMesh, FaceId } from '../embedding';
+import type { HalfEdgeMesh } from '../embedding';
 import { buildDual, routeEdgeFixedEmbedding } from '../dual';
 import { testPlanarity } from '../planarity';
 import { minCostFlow } from '../flow';
 
 export type Point = { x: number; y: number };
 export type EdgePath = { edge: EdgeId; points: Point[] };
+
+export type LayoutMode = 'straight' | 'orthogonal' | 'straight-fallback';
 
 export type LayoutResult = {
   positions: Map<VertexId, Point>;
@@ -16,8 +18,29 @@ export type LayoutResult = {
     bends: number;
     area: number;
     crossings: number;
+    /** Which geometry pipeline actually produced this result. */
+    mode?: LayoutMode;
   };
 };
+
+/**
+ * Thrown when the bend-minimization min-cost flow of the orthogonal
+ * (topology-shape-metrics) pipeline has no feasible solution for the given
+ * embedding. Catch it, use `mode: 'straight'`, or pass
+ * `onInfeasible: 'fallback'` to {@link planarizationLayout}.
+ */
+export class OrthogonalInfeasibleError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OrthogonalInfeasibleError';
+  }
+}
+
+const ORTHOGONAL_INFEASIBLE_MESSAGE =
+  'Orthogonal representation is infeasible for this embedding: the bend min-cost flow demands do not balance ' +
+  '(this can happen e.g. for disconnected inputs). ' +
+  "Use mode:'straight', or pass onInfeasible:'fallback' to planarizationLayout to downgrade to straight mode " +
+  "(the downgrade is recorded on the result as stats.mode === 'straight-fallback').";
 
 type Direction = 'N' | 'E' | 'S' | 'W';
 
@@ -393,27 +416,10 @@ export function planarStraightLine(mesh: HalfEdgeMesh): LayoutResult {
       bends: 0,
       area,
       crossings,
+      mode: 'straight',
     },
   };
 }
-
-const incidentFacesInOrder = (mesh: HalfEdgeMesh, vertex: VertexId): FaceId[] => {
-  const start = mesh.origin.findIndex((v) => v === vertex);
-  if (start < 0) return [];
-  const faces: FaceId[] = [];
-  let h = start;
-  const guardLimit = mesh.halfEdgeCount;
-  let guard = 0;
-  do {
-    const f = mesh.face[h] ?? -1;
-    if (!faces.includes(f)) faces.push(f as FaceId);
-    const twin = mesh.twin[h] ?? -1;
-    const next = mesh.next[twin] ?? -1;
-    h = next;
-    guard += 1;
-  } while (h !== start && guard < guardLimit);
-  return faces;
-};
 
 const incidentHalfEdgesInOrder = (mesh: HalfEdgeMesh, vertex: VertexId): number[] => {
   const start = mesh.origin.findIndex((v) => v === vertex);
@@ -490,33 +496,40 @@ const computeBends = (mesh: HalfEdgeMesh) => {
   const vertexCount = Math.max(...mesh.origin) + 1;
   const edgeCount = mesh.halfEdgeCount / 2;
   const faceRotation = Array(faceCount).fill(0);
-  let relaxedDegree = false;
 
   for (let v = 0; v < vertexCount; v += 1) {
-    const faces = incidentFacesInOrder(mesh, v);
-    const degree = faces.length;
+    // Angles must be assigned per CORNER around the vertex, not per distinct
+    // incident face: at a bridge (or any tree-like part of the embedding) the
+    // same face shows up on both sides of the vertex, and collapsing those
+    // corners into one made the vertex angle sum ≠ 360°. That unbalanced the
+    // face-rotation demands, which made the bend min-cost flow structurally
+    // infeasible for any graph containing a bridge.
+    const cornerFaces = incidentHalfEdgesInOrder(mesh, v).map((h) => mesh.face[h] ?? -1);
+    const degree = cornerFaces.length;
     if (degree === 0) continue;
     const angles = Array(degree).fill(1);
     if (degree === 1) {
-      // single face around a dangling edge: treat as 360°
+      // single corner around a dangling edge: full 360°
       angles[0] = 4;
     } else if (degree === 2) {
       angles[0] = 2;
       angles[1] = 2;
     } else if (degree === 3) {
-      let idx = faces.indexOf(outer);
+      let idx = cornerFaces.indexOf(outer);
       if (idx < 0) idx = 0;
       angles[idx] = 2;
     } else if (degree === 4) {
       // all 90° already
     } else {
-      // Allow higher degree by treating extra incidences as 90° ports.
-      relaxedDegree = true;
-      for (let i = 0; i < angles.length; i += 1) angles[i] = 1;
+      // Degree > 4 cannot keep every corner at ≥90°; relax the extra corners
+      // to 0° (Kandinsky-style) so the per-vertex angle sum stays 360° and the
+      // flow demands remain balanced.
+      for (let i = 4; i < degree; i += 1) angles[i] = 0;
     }
 
-    for (let i = 0; i < faces.length; i += 1) {
-      const f = faces[i]!;
+    for (let i = 0; i < degree; i += 1) {
+      const f = cornerFaces[i]!;
+      if (f < 0) continue;
       const angle = angles[i] ?? 1;
       faceRotation[f] += 2 - angle;
     }
@@ -546,10 +559,7 @@ const computeBends = (mesh: HalfEdgeMesh) => {
 
   const result = minCostFlow({ nodeCount: faceCount, arcs, demands });
   if (!result.feasible) {
-    if (relaxedDegree) {
-      return Array(edgeCount).fill(0);
-    }
-    throw new Error('Orthogonal representation flow is infeasible.');
+    throw new OrthogonalInfeasibleError(ORTHOGONAL_INFEASIBLE_MESSAGE);
   }
 
   const bendsPerEdge: number[] = [];
@@ -575,7 +585,36 @@ const dedupePoints = (points: Point[]) => {
   return out;
 };
 
-const orthogonalizeEdgePath = (points: Point[]) => {
+type Segment = [Point, Point];
+
+/** Total length of collinear overlap between segment a→b and the occupied segments. */
+const collinearOverlap = (a: Point, b: Point, occupied: Segment[]): number => {
+  let total = 0;
+  for (const [c, d] of occupied) {
+    if (a.x === b.x && c.x === d.x && a.x === c.x) {
+      const lo = Math.max(Math.min(a.y, b.y), Math.min(c.y, d.y));
+      const hi = Math.min(Math.max(a.y, b.y), Math.max(c.y, d.y));
+      if (hi > lo) total += hi - lo;
+    } else if (a.y === b.y && c.y === d.y && a.y === c.y) {
+      const lo = Math.max(Math.min(a.x, b.x), Math.min(c.x, d.x));
+      const hi = Math.min(Math.max(a.x, b.x), Math.max(c.x, d.x));
+      if (hi > lo) total += hi - lo;
+    }
+  }
+  return total;
+};
+
+const segmentsOf = (points: Point[]): Segment[] => {
+  const segments: Segment[] = [];
+  for (let i = 0; i < points.length - 1; i += 1) {
+    const a = points[i]!;
+    const b = points[i + 1]!;
+    if (a.x !== b.x || a.y !== b.y) segments.push([a, b]);
+  }
+  return segments;
+};
+
+const orthogonalizeEdgePath = (points: Point[], occupied: Segment[] = []) => {
   if (points.length < 2) return points;
   const out: Point[] = [points[0]!];
   for (let i = 0; i < points.length - 1; i += 1) {
@@ -585,7 +624,15 @@ const orthogonalizeEdgePath = (points: Point[]) => {
       out.push(b);
       continue;
     }
-    out.push({ x: a.x, y: b.y });
+    // Two candidate L-corners; pick the one whose segments overlap
+    // already-routed collinear segments the least (ties keep the historical
+    // vertical-first choice). This is a cheap greedy reduction of collinear
+    // edge overlap, not a full track assignment.
+    const midA = { x: a.x, y: b.y };
+    const midB = { x: b.x, y: a.y };
+    const costA = collinearOverlap(a, midA, occupied) + collinearOverlap(midA, b, occupied);
+    const costB = collinearOverlap(a, midB, occupied) + collinearOverlap(midB, b, occupied);
+    out.push(costA <= costB ? midA : midB);
     out.push(b);
   }
   return dedupePoints(out);
@@ -678,6 +725,7 @@ export function orthogonalLayout(mesh: HalfEdgeMesh): LayoutResult {
       bends: countBends(compacted.edges),
       area,
       crossings: 0,
+      mode: 'orthogonal',
     },
   };
 }
@@ -691,12 +739,20 @@ export type PlanarizationResult = {
 
 export type PlanarizationLayoutOptions = {
   mode?: 'straight' | 'orthogonal';
+  /**
+   * What to do when `mode: 'orthogonal'` hits an embedding whose bend
+   * min-cost flow is infeasible: `'throw'` (default) raises
+   * {@link OrthogonalInfeasibleError}; `'fallback'` downgrades to the
+   * straight-line pipeline and records it as `stats.mode === 'straight-fallback'`.
+   */
+  onInfeasible?: 'throw' | 'fallback';
 };
 
 export function planarizationLayout(
   graph: Graph,
   options: PlanarizationLayoutOptions = {},
 ): PlanarizationResult {
+  assertGraph(graph, 'planarizationLayout');
   const kept: Array<{ u: VertexId; v: VertexId; id: EdgeId }> = [];
   const remaining: EdgeId[] = [];
 
@@ -803,13 +859,32 @@ export function planarizationLayout(
   }
 
   const planarMesh = buildHalfEdgeMesh(planarGraph, planarEmbedding.embedding);
-  const mode = options.mode ?? 'straight';
-  const baseLayout = mode === 'orthogonal' ? orthogonalLayout(planarMesh) : planarStraightLine(planarMesh);
+  const requestedMode = options.mode ?? 'straight';
+  const onInfeasible = options.onInfeasible ?? 'throw';
+  let effectiveMode: LayoutMode = requestedMode;
+  let baseLayout: LayoutResult;
+  if (requestedMode === 'orthogonal') {
+    try {
+      baseLayout = orthogonalLayout(planarMesh);
+    } catch (err) {
+      if (onInfeasible === 'fallback' && err instanceof OrthogonalInfeasibleError) {
+        baseLayout = planarStraightLine(planarMesh);
+        effectiveMode = 'straight-fallback';
+      } else {
+        throw err;
+      }
+    }
+  } else {
+    baseLayout = planarStraightLine(planarMesh);
+  }
+  const orthogonalPaths = effectiveMode === 'orthogonal';
 
   const finalEdges: EdgePath[] = [];
+  const occupied: Array<[Point, Point]> = [];
   paths.forEach((path, edgeId) => {
     const points = path.map((v) => baseLayout.positions.get(v) ?? { x: 0, y: 0 });
-    const routed = mode === 'orthogonal' ? orthogonalizeEdgePath(points) : points;
+    const routed = orthogonalPaths ? orthogonalizeEdgePath(points, occupied) : points;
+    if (orthogonalPaths) occupied.push(...segmentsOf(routed));
     finalEdges.push({ edge: edgeId, points: routed });
   });
 
@@ -821,9 +896,10 @@ export function planarizationLayout(
       positions: baseLayout.positions,
       edges: finalEdges,
       stats: {
-        bends: mode === 'orthogonal' ? countBends(finalEdges) : baseLayout.stats.bends,
+        bends: orthogonalPaths ? countBends(finalEdges) : baseLayout.stats.bends,
         area: baseLayout.stats.area,
         crossings: currentVertexCount - baseGraph.vertexCount(),
+        mode: effectiveMode,
       },
     },
   };

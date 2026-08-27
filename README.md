@@ -78,6 +78,15 @@ The showcase is a Vite + React Router + Tailwind v4 + Radix SPA deployed to Fire
 - Dual routing automatically uses a **maximal planar backbone** on nonplanar inputs.
 - Orthogonal layout planarizes non‑planar graphs before routing and assigns ports for high‑degree
   vertices to preserve orthogonal geometry.
+- If the orthogonal bend flow is infeasible for an embedding (e.g. disconnected inputs),
+  `planarizationLayout` throws an actionable `OrthogonalInfeasibleError`; pass
+  `onInfeasible: 'fallback'` to downgrade to straight mode — recorded as
+  `stats.mode === 'straight-fallback'`, never silently.
+- Known limitation: the orthogonal router greedily reduces collinear edge overlap when choosing
+  bend corners but does not do full track assignment, so partially overlapping segments can still
+  occur on dense graphs.
+- The package is **ESM-only**: Node ≥ 20 `require(esm)` works, but node10/legacy-CJS TypeScript
+  resolution is not supported.
 
 ## Contributing
 - Use pnpm >= 9 and Node >= 20.

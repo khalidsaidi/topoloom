@@ -22,24 +22,28 @@ npm i @khalidsaidi/topoloom
 
 ## Quickstart: graph in, SVG out
 
-Layout positions are keyed by TopoLoom's internal numeric `VertexId` — map back to your labels with `g.label(v)`:
+Save as `quickstart.mjs` and run `node quickstart.mjs` — it writes a viewable `./layout.svg` with orthogonal edges and labeled nodes:
 
 ```js
+import { writeFileSync } from 'node:fs';
 import { graph, layout } from '@khalidsaidi/topoloom';
 
 const g = graph.fromEdgeList([
-  ['app', 'db'], ['app', 'cache'], ['db', 'cache'],
-  ['app', 'queue'], ['queue', 'db'],
+  ['app', 'db'], ['app', 'cache'], ['db', 'cache'], ['app', 'queue'], ['queue', 'db'],
 ]);
-
-const { layout: drawing } = layout.planarizationLayout(g, { mode: 'orthogonal' });
-
-const svg = [...drawing.positions]
-  .map(([v, p]) => `<circle cx="${p.x}" cy="${p.y}" r="5"><title>${g.label(v)}</title></circle>`)
-  .join('\n');
+const { layout: d } = layout.planarizationLayout(g, { mode: 'orthogonal' });
+const S = 4, X = (p) => p.x * S + 30, Y = (p) => p.y * S + 30;
+const edges = d.edges.map((e) =>
+  `<polyline points="${e.points.map((p) => `${X(p)},${Y(p)}`).join(' ')}" fill="none" stroke="#64748b" stroke-width="2"/>`);
+const nodes = [...d.positions].filter(([v]) => g.label(v) !== null).map(([v, p]) =>
+  `<circle cx="${X(p)}" cy="${Y(p)}" r="6" fill="#0ea5e9"/><text x="${X(p) + 9}" y="${Y(p) - 8}" font-size="12">${g.label(v)}</text>`);
+const pts = [...d.edges.flatMap((e) => e.points), ...d.positions.values()];
+const [w, h] = [Math.max(...pts.map(X)) + 80, Math.max(...pts.map(Y)) + 30];
+writeFileSync('layout.svg', `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">${edges.join('')}${nodes.join('')}</svg>`);
+console.log(`wrote ./layout.svg — bends=${d.stats.bends} area=${d.stats.area} crossings=${d.stats.crossings} mode=${d.stats.mode}`);
 ```
 
-`drawing.edges` holds the matching orthogonal edge paths (polyline `points` in the same coordinate space), and `drawing.stats` reports bends / area / crossings. Nonplanar input is handled automatically: edges that can't be embedded are routed through the dual graph and crossings become dummy vertices (ids ≥ `g.vertexCount()`, `g.label(v) === null`).
+Layout positions are keyed by TopoLoom's internal numeric `VertexId` — map back to your labels with `g.label(v)`. `d.edges` holds the matching orthogonal edge paths (polyline `points` in the same coordinate space), and `d.stats` reports bends / area / crossings plus the `mode` that actually produced the drawing. Nonplanar input is handled automatically: edges that can't be embedded are routed through the dual graph and crossings become dummy vertices (ids ≥ `g.vertexCount()`, `g.label(v) === null`).
 
 ## Use with React Flow
 
@@ -120,6 +124,16 @@ Every namespace is also a subpath export (`@khalidsaidi/topoloom/planarity`, `/l
 - Live showcase (interactive demos): https://topoloom.web.app/
 - API docs (TypeDoc): https://topoloom.web.app/api/
 - Issues: https://github.com/khalidsaidi/topoloom/issues
+
+## Packaging
+
+TopoLoom is **ESM-only** (`"type": "module"` with subpath exports). Node ≥ 20 can `require('@khalidsaidi/topoloom')` thanks to `require(esm)`; legacy CommonJS resolution and `node10`/legacy-CJS TypeScript module resolution are not supported.
+
+## Known limitations
+
+- **Orthogonal infeasibility**: if `mode: 'orthogonal'` hits an embedding whose bend min-cost flow cannot balance (e.g. disconnected inputs), `planarizationLayout` throws an `OrthogonalInfeasibleError` telling you what to do. Pass `onInfeasible: 'fallback'` to downgrade honestly to the straight-line pipeline — the result then reports `stats.mode === 'straight-fallback'` (never a silent downgrade). Graphs with bridges/trees are fully supported (fixed in 0.3.x).
+- **Collinear edge overlap**: the orthogonal router greedily picks bend corners to reduce collinear overlap between edge paths, but it does not perform full track assignment, so partial overlaps can still occur on dense graphs (typically several edges leaving one vertex in the same direction). The topology (bend counts, ports) is still correct.
+- **Dense circuit graphs**: one showcase sample (`suitesparse hamm/add20`) currently trips the planarization edge-insertion step in both modes; tracked as a known defect.
 
 ## Status
 

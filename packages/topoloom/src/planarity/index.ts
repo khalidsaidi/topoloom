@@ -1,4 +1,5 @@
 import type { EdgeId, Graph, VertexId } from '../graph';
+import { assertGraph } from '../graph';
 import type { RotationSystem } from '../embedding';
 import { allocInt32Ptr, getPlanarityWasm, viewInt32 } from './wasm';
 import { planarityLeftRight, planarityWitness, type PlanarityEdgeSpec } from './ts';
@@ -34,6 +35,7 @@ const toPlanarityEdges = (edges: ReturnType<Graph['edges']>): PlanarityEdgeSpec[
 };
 
 export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): PlanarityResult {
+  assertGraph(graph, 'testPlanarity');
   const n = graph.vertexCount();
   const edges = graph.edges();
   const treatDirected = options.treatDirectedAsUndirected ?? true;

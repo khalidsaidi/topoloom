@@ -102,10 +102,17 @@ export function Benchmarks() {
             timed run after 1 warmup (deterministic). &ldquo;Edges rerouted&rdquo; is the number of
             edges the maximal-planar-subgraph phase removed and then re-inserted via dual routing.
           </p>
+          <p className="text-xs text-muted-foreground">
+            The planarizationLayout column measures the default <code>mode: &apos;straight&apos;</code>;{' '}
+            <code>mode: &apos;orthogonal&apos;</code> adds bend-minimization and compaction work so it
+            costs more, and on some inputs (e.g. disconnected graphs) its flow step can be infeasible
+            and throws unless you pass <code>onInfeasible: &apos;fallback&apos;</code> — see{' '}
+            <a className="underline" href="#known-limits">known limits</a>.
+          </p>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card id="known-limits">
         <CardHeader>
           <CardTitle className="text-base">Known limits (honestly)</CardTitle>
         </CardHeader>
@@ -121,6 +128,16 @@ export function Benchmarks() {
             The TypeScript planarity fallback showed a 196&nbsp;ms outlier on bu4p-g00300-01 even
             though the graph is planar — the left-right implementation has structure-dependent slow
             paths the WASM backend does not.
+          </p>
+          <p>
+            <span className="font-medium text-foreground">Orthogonal mode
+            (<code>mode: &apos;orthogonal&apos;</code>) is not what this table measures.</span>{' '}
+            It runs bend-minimization (min-cost flow) plus compaction on top of planarization. Since
+            0.3.x it handles bridges/trees correctly; on embeddings where the flow is still
+            infeasible (e.g. disconnected inputs) it throws an actionable
+            <code> OrthogonalInfeasibleError</code>, or honestly downgrades to straight mode
+            (reported as <code>stats.mode === &apos;straight-fallback&apos;</code>) when you pass{' '}
+            <code>onInfeasible: &apos;fallback&apos;</code>.
           </p>
         </CardContent>
       </Card>

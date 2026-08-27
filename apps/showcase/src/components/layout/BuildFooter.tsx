@@ -1,4 +1,5 @@
 import { formatBuildDate, shortSha, useBuildInfo } from '@/lib/buildInfo';
+import { useRouteDocumentTitle } from '@/lib/routeTitle';
 import { cn } from '@/lib/utils';
 
 export type BuildFooterProps = {
@@ -7,6 +8,9 @@ export type BuildFooterProps = {
 };
 
 export function BuildFooter({ immersive = false, className }: BuildFooterProps) {
+  // BuildFooter is the one component mounted on every route in both shell
+  // modes, so it owns keeping document.title in sync with the SPA route.
+  useRouteDocumentTitle();
   const info = useBuildInfo();
   const sha = info.gitSha ?? 'unknown';
   const short = shortSha(sha);

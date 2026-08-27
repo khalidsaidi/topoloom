@@ -13,6 +13,7 @@
  * `edge.data.bendPoints` so a custom edge component can render the true route.
  */
 import type { Graph, VertexId, EdgeId } from '../graph';
+import { assertGraph } from '../graph';
 import type { LayoutResult, PlanarizationResult, Point } from '../layout';
 
 /** Structurally compatible with `Node` from `@xyflow/react`. */
@@ -109,6 +110,7 @@ export function toReactFlow(
   graph: Graph,
   opts: ToReactFlowOptions = {},
 ): ReactFlowGraph {
+  assertGraph(graph, 'toReactFlow');
   const layout: LayoutResult = 'layout' in result ? result.layout : result;
   const scale = opts.scale ?? 1;
   const halfW = (opts.nodeWidth ?? 0) / 2;

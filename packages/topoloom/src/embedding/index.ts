@@ -1,4 +1,5 @@
 import type { EdgeId, Graph, VertexId } from '../graph';
+import { assertGraph } from '../graph';
 
 export type HalfEdgeId = number;
 export type FaceId = number;
@@ -36,6 +37,7 @@ export function rotationFromAdjacency(graph: Graph): RotationSystem {
 }
 
 export function buildHalfEdgeMesh(graph: Graph, rotation: RotationSystem): HalfEdgeMesh {
+  assertGraph(graph, 'buildHalfEdgeMesh');
   const halfEdgeCount = graph.edgeCount() * 2;
   const origin: VertexId[] = Array(halfEdgeCount).fill(-1);
   const twin: HalfEdgeId[] = Array(halfEdgeCount).fill(-1);

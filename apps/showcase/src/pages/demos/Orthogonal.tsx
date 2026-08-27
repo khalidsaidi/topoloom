@@ -165,6 +165,7 @@ export function OrthogonalDemo() {
           <SvgViewport
             nodes={nodes}
             edges={edges}
+            fitKey={showComputed ? computedSig : null}
             highlightedNodes={highlightedNodes}
             onNodeClick={(id) => setSelectedNodeId((prev) => (prev === id ? null : id))}
             onNodeMove={(id, dx, dy) => {
