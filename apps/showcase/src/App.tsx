@@ -7,6 +7,9 @@ const Landing = lazy(() => import('@/pages/Landing').then((m) => ({ default: m.L
 const GettingStarted = lazy(() =>
   import('@/pages/GettingStarted').then((m) => ({ default: m.GettingStarted })),
 );
+const Benchmarks = lazy(() =>
+  import('@/pages/Benchmarks').then((m) => ({ default: m.Benchmarks })),
+);
 const PlanarityDemo = lazy(() =>
   import('@/pages/demos/Planarity').then((m) => ({ default: m.PlanarityDemo })),
 );
@@ -66,6 +69,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/getting-started" element={<GettingStarted />} />
+            <Route path="/benchmarks" element={<Benchmarks />} />
             <Route path="/demo/planarity" element={<PlanarityDemo />} />
             <Route path="/demos/planarity" element={<PlanarityDemo />} />
             <Route path="/demo/embedding" element={<EmbeddingDemo />} />

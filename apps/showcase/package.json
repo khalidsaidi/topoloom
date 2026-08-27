@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm check:styled-controls && node ../../scripts/write-build-info.mjs && tsc -b && vite build",
+    "build": "pnpm check:styled-controls && node ../../scripts/write-build-info.mjs && tsc -b && vite build && node scripts/prerender.mjs",
+    "benchmarks": "node scripts/run-benchmarks.mjs",
     "lint": "eslint . && pnpm check:styled-controls",
     "check:styled-controls": "node ../../scripts/check-showcase-unstyled-controls.mjs",
     "typecheck": "tsc -b --pretty false",

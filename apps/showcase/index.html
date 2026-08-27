@@ -5,10 +5,81 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="topoloom-smoke" content="1" />
-    <title>TopoLoom — Topology-first graph kernel</title>
+    <title>TopoLoom — Planar Graph Layout &amp; Orthogonal Drawing for JS/TS</title>
+    <meta
+      name="description"
+      content="TopoLoom is a topology-first graph drawing kernel for JavaScript/TypeScript: planarity testing with K5/K3,3 witnesses, planar embeddings, BC-trees and SPQR trees, dual-graph routing, and topology-shape-metrics orthogonal layout. Interactive demos on real road-network, power-grid, and circuit datasets."
+    />
+    <link rel="canonical" href="https://topoloom.web.app/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TopoLoom" />
+    <meta property="og:title" content="TopoLoom — Planar Graph Layout &amp; Orthogonal Drawing for JS/TS" />
+    <meta
+      property="og:description"
+      content="Topology-first graph drawing kernel: planarity testing, SPQR trees, planarization, and orthogonal layout — with interactive demos on real datasets."
+    />
+    <meta property="og:url" content="https://topoloom.web.app/" />
+    <meta property="og:image" content="https://topoloom.web.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="TopoLoom showcase — planar orthogonal drawing of a real graph" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="TopoLoom — Planar Graph Layout &amp; Orthogonal Drawing for JS/TS" />
+    <meta
+      name="twitter:description"
+      content="Topology-first graph drawing kernel: planarity testing, SPQR trees, planarization, and orthogonal layout — with interactive demos on real datasets."
+    />
+    <meta name="twitter:image" content="https://topoloom.web.app/og.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "TopoLoom",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Any (JavaScript/TypeScript)",
+        "url": "https://topoloom.web.app/",
+        "sameAs": ["https://github.com/khalidsaidi/topoloom", "https://www.npmjs.com/package/@khalidsaidi/topoloom"],
+        "description": "Planar graph algorithms and orthogonal layout for JS/TS: planarity testing with K5/K3,3 witness, planar embeddings, SPQR trees, and topology-shape-metrics orthogonal drawing.",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static pre-hydration content: visible to crawlers and link fetchers;
+           replaced by the React app once JS loads. -->
+      <!--prerender:content:start-->
+      <div style="max-width: 720px; margin: 0 auto; padding: 48px 24px; font-family: system-ui, sans-serif; color: #e2e8f0; background: #0f172a; border-radius: 12px">
+        <p style="font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8">
+          Topology-first graph drawing kernel
+        </p>
+        <h1 style="font-size: 40px; line-height: 1.15; margin: 8px 0 16px">From hairball to blueprint.</h1>
+        <p style="font-size: 16px; line-height: 1.6; color: #cbd5e1">
+          TopoLoom is a planar graph layout library for JavaScript and TypeScript. It tests
+          planarity (returning a K5 or K3,3 witness when a graph is not planar), computes planar
+          embeddings and BC/SPQR decompositions, routes edges through the dual graph, and produces
+          orthogonal layouts via topology-shape-metrics — the pipeline behind circuit-diagram and
+          metro-map style drawings.
+        </p>
+        <p style="font-size: 16px; line-height: 1.6; color: #cbd5e1">
+          This showcase runs the real kernel in your browser on real datasets: California road
+          networks, the US power grid, downtown San Francisco streets, SuiteSparse circuit
+          matrices, and the BU4P graph-drawing benchmarks.
+        </p>
+        <pre style="background: #1e293b; padding: 12px 16px; border-radius: 8px; font-size: 14px; overflow-x: auto">npm i @khalidsaidi/topoloom</pre>
+        <ul style="font-size: 15px; line-height: 2; color: #cbd5e1">
+          <li><a href="/getting-started" style="color: #7dd3fc">Getting started</a> — install and first planarity check</li>
+          <li><a href="/benchmarks" style="color: #7dd3fc">Benchmarks</a> — real timings on BU4P and road-network datasets</li>
+          <li><a href="/gallery" style="color: #7dd3fc">Gallery</a> — hard graphs drawn clean</li>
+          <li><a href="/demo/planarity" style="color: #7dd3fc">Planarity demo</a> · <a href="/demo/spqr" style="color: #7dd3fc">SPQR demo</a> · <a href="/demo/orthogonal" style="color: #7dd3fc">Orthogonal layout demo</a></li>
+          <li><a href="https://github.com/khalidsaidi/topoloom" style="color: #7dd3fc">GitHub</a> · <a href="https://www.npmjs.com/package/@khalidsaidi/topoloom" style="color: #7dd3fc">npm</a></li>
+        </ul>
+        <noscript>
+          <p style="color: #f8fafc">This showcase's interactive demos require JavaScript, but the library itself runs anywhere JS runs — browser, Node, or worker.</p>
+        </noscript>
+      </div>
+      <!--prerender:content:end-->
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

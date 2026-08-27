@@ -1,0 +1,171 @@
+{
+  "generatedAt": "2026-08-27T22:15:33.186Z",
+  "environment": {
+    "node": "v20.20.0",
+    "platform": "linux 6.6.87.2-microsoft-standard-WSL2",
+    "cpu": "AMD Ryzen 7 3800X 8-Core Processor",
+    "note": "Measured under WSL2 on a developer laptop; absolute numbers vary by machine — treat relative shape, not absolutes, as the signal."
+  },
+  "method": {
+    "planarity": "median of 7 runs after 2 warmups, per backend (wasm = Edge-Addition Planarity Suite (Boyer) compiled to WASM, ts = pure-TypeScript left-right test)",
+    "planarization": "single timed run after 1 warmup (deterministic)"
+  },
+  "rows": [
+    {
+      "id": "hero-graph",
+      "name": "Hero Graph Sample",
+      "file": "hero.json",
+      "n": 90,
+      "m": 122,
+      "planar": true,
+      "planarityWasmMs": 0.07,
+      "planarityTsMs": 0.11,
+      "planarizationMs": 34,
+      "removedEdges": 0,
+      "crossings": 0
+    },
+    {
+      "id": "bu4p-g00100-01",
+      "name": "BU4P g.00100.01",
+      "file": "benchmark-bu4p-g00100-01.json",
+      "n": 100,
+      "m": 140,
+      "planar": true,
+      "planarityWasmMs": 0.29,
+      "planarityTsMs": 0.92,
+      "planarizationMs": 55,
+      "removedEdges": 0,
+      "crossings": 0
+    },
+    {
+      "id": "bu4p-g00200-01",
+      "name": "BU4P g.00200.01",
+      "file": "benchmark-bu4p-g00200-01.json",
+      "n": 200,
+      "m": 266,
+      "planar": true,
+      "planarityWasmMs": 0.23,
+      "planarityTsMs": 0.72,
+      "planarizationMs": 106,
+      "removedEdges": 0,
+      "crossings": 0
+    },
+    {
+      "id": "downtown-sf-bfs-220-s3",
+      "name": "OSM Downtown SF (downtown-sf-bfs-220-s3)",
+      "file": "osm-downtown-sf-bfs-220-s3.json",
+      "n": 220,
+      "m": 274,
+      "planar": true,
+      "planarityWasmMs": 0.17,
+      "planarityTsMs": 0.27,
+      "planarizationMs": 128,
+      "removedEdges": 0,
+      "crossings": 0
+    },
+    {
+      "id": "powergrid-bfs-250-s1",
+      "name": "Power Grid (bfs-250-s1)",
+      "file": "powergrid-bfs-250-s1.json",
+      "n": 250,
+      "m": 297,
+      "planar": false,
+      "planarityWasmMs": 0.29,
+      "planarityTsMs": 39.49,
+      "planarizationMs": 505,
+      "removedEdges": 11,
+      "crossings": 47
+    },
+    {
+      "id": "roadnet-ca-bfs-250-s11",
+      "name": "roadNet-CA (bfs-250-s11)",
+      "file": "roadnet-ca-bfs-250-s11.json",
+      "n": 250,
+      "m": 336,
+      "planar": true,
+      "planarityWasmMs": 0.22,
+      "planarityTsMs": 0.36,
+      "planarizationMs": 161,
+      "removedEdges": 0,
+      "crossings": 0
+    },
+    {
+      "id": "powergrid-bfs-320-s7",
+      "name": "Power Grid (bfs-320-s7)",
+      "file": "powergrid-bfs-320-s7.json",
+      "n": 320,
+      "m": 399,
+      "planar": false,
+      "planarityWasmMs": 0.32,
+      "planarityTsMs": 94.19,
+      "planarizationMs": 337,
+      "removedEdges": 18,
+      "crossings": 58
+    },
+    {
+      "id": "downtown-sf-bfs-320-s17",
+      "name": "OSM Downtown SF (downtown-sf-bfs-320-s17)",
+      "file": "osm-downtown-sf-bfs-320-s17.json",
+      "n": 320,
+      "m": 423,
+      "planar": true,
+      "planarityWasmMs": 0.5,
+      "planarityTsMs": 0.43,
+      "planarizationMs": 257,
+      "removedEdges": 0,
+      "crossings": 0
+    },
+    {
+      "id": "roadnet-ca-bfs-340-s23",
+      "name": "roadNet-CA (bfs-340-s23)",
+      "file": "roadnet-ca-bfs-340-s23.json",
+      "n": 340,
+      "m": 455,
+      "planar": true,
+      "planarityWasmMs": 0.36,
+      "planarityTsMs": 0.54,
+      "planarizationMs": 341,
+      "removedEdges": 0,
+      "crossings": 0
+    },
+    {
+      "id": "bu4p-g00300-01",
+      "name": "BU4P g.00300.01",
+      "file": "benchmark-bu4p-g00300-01.json",
+      "n": 300,
+      "m": 492,
+      "planar": true,
+      "planarityWasmMs": 1.18,
+      "planarityTsMs": 196.04,
+      "planarizationMs": 267,
+      "removedEdges": 0,
+      "crossings": 0
+    },
+    {
+      "id": "hamm-add32",
+      "name": "Hamm add32",
+      "file": "suitesparse-hamm-add32-sample.json",
+      "n": 300,
+      "m": 623,
+      "planar": true,
+      "planarityWasmMs": 0.43,
+      "planarityTsMs": 0.53,
+      "planarizationMs": 299,
+      "removedEdges": 0,
+      "crossings": 0
+    },
+    {
+      "id": "hamm-add20",
+      "name": "Hamm add20",
+      "file": "suitesparse-hamm-add20-sample.json",
+      "n": 186,
+      "m": 800,
+      "planar": false,
+      "planarityWasmMs": 0.48,
+      "planarityTsMs": 66.98,
+      "planarizationMs": null,
+      "removedEdges": null,
+      "crossings": null
+    }
+  ]
+}

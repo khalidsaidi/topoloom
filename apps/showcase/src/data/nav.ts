@@ -16,6 +16,11 @@ export const navSections: NavSection[] = [
       { label: 'Landing', path: '/' },
       { label: 'Getting Started', path: '/getting-started' },
       { label: 'API', path: '/api' },
+      {
+        label: 'Benchmarks',
+        path: '/benchmarks',
+        description: 'Real timings on BU4P, road-network, and circuit datasets.',
+      },
     ],
   },
   {
