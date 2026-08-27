@@ -38,8 +38,12 @@ const g = graph.fromEdgeList([
   ['c', 'a'],
 ]);
 
-const result = planarity.test(g);
-console.log(result.isPlanar, result.rotationSystem);`}
+const result = planarity.testPlanarity(g);
+if (result.planar) {
+  console.log('planar', result.embedding); // rotation system
+} else {
+  console.log('witness', result.witness); // K5 or K3,3 subdivision
+}`}
           </pre>
         </CardContent>
       </Card>

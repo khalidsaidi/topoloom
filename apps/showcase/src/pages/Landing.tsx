@@ -256,6 +256,14 @@ export function Landing() {
               Topology-first graph drawing kernel
             </Badge>
             <div className="flex items-center gap-2">
+              <a
+                href="https://www.npmjs.com/package/@khalidsaidi/topoloom"
+                target="_blank"
+                rel="noreferrer"
+                className="pointer-events-auto rounded-md border border-white/40 bg-black/45 px-3 py-2 font-mono text-xs text-white transition-colors hover:bg-black/70"
+              >
+                npm i @khalidsaidi/topoloom
+              </a>
               <Button asChild variant="ghost" className="pointer-events-auto border-white/40 bg-black/45 text-white hover:bg-black/70">
                 <Link to="/api">API</Link>
               </Button>
