@@ -3,11 +3,8 @@ import { Background, Controls, ReactFlow } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import { GraphBuilder } from '@khalidsaidi/topoloom/graph';
-// With topoloom >= 0.3.0 both imports come straight from the package:
-//   import { planarizationLayout } from '@khalidsaidi/topoloom/layout';
-//   import { toReactFlow } from '@khalidsaidi/topoloom/react-flow';
-import { planarizationLayout } from './topoloom-layout';
-import { toReactFlow } from './topoloom-react-flow';
+import { planarizationLayout } from '@khalidsaidi/topoloom/layout';
+import { toReactFlow } from '@khalidsaidi/topoloom/react-flow';
 
 const NODE_WIDTH = 104;
 const NODE_HEIGHT = 36;
