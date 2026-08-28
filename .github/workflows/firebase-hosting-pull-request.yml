@@ -25,7 +25,7 @@ jobs:
       - run: pnpm -r typecheck
       - run: pnpm -r lint
       - run: pnpm -r test
-      - run: pnpm docs
+      - run: pnpm run docs
       - run: pnpm -r build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
