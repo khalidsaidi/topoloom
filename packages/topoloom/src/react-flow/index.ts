@@ -42,6 +42,7 @@ export type ReactFlowEdge = {
   [key: string]: unknown;
 };
 
+/** Options for {@link toReactFlow} — scaling, node-size centering, and per-node/edge defaults. */
 export type ToReactFlowOptions = {
   /**
    * Multiplier applied to all layout coordinates. topoloom's compacted
@@ -70,6 +71,7 @@ export type ToReactFlowOptions = {
   edgeDefaults?: Record<string, unknown>;
 };
 
+/** Result of {@link toReactFlow}: ready-to-render React Flow `nodes` and `edges` arrays. */
 export type ReactFlowGraph = {
   nodes: ReactFlowNode[];
   edges: ReactFlowEdge[];
