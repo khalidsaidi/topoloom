@@ -1,6 +1,6 @@
 {
   "name": "@khalidsaidi/topoloom",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Planar graph algorithms and orthogonal layout for JS/TS: planarity testing with K5/K3,3 witness, planar embeddings, SPQR trees, and topology-shape-metrics orthogonal drawing.",
   "license": "MIT",
   "type": "module",

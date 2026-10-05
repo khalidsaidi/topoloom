@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.4.0 — 2026-10-05
 - Planarity (fix): the TypeScript left-right backend (the default below 250 vertices) could return a planar verdict with a non-planar rotation system, and could reject planar graphs outright — a lowpoint update used the parent's `lowpt2` instead of the child's. This made `planarizationLayout` throw "Planarization graph should be planar" on graphs needing several edges reinserted (#33). A seeded fuzz of 3,000 random planar graphs went from 337 invalid embeddings and 144 false rejections to none.
 - Planarity (fix): parallel edges are now handled by both backends — the wasm core no longer hangs on them and the TS core no longer rejects planar multigraphs. The underlying simple graph is tested and each parallel edge is embedded next to its twin.
 - Layout (fix): the straight-line Tutte solve uses sparse preconditioned conjugate gradients instead of dense Gaussian elimination, so memory is O(V + E) rather than O(V²); planarized graphs with ~10k crossing dummies previously exhausted the heap. Known limitation: dense inputs that need hundreds of edges reinserted are still slow (each insertion re-embeds the whole graph).
