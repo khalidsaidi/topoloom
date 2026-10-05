@@ -53,14 +53,11 @@ describe('orthogonal mode across showcase datasets', () => {
     });
   }
 
-  // Known pre-existing limitation, independent of the orthogonal flow fix: the
-  // planarization edge-insertion loop produces a temporarily nonplanar
-  // intermediate for this dense circuit sample, in BOTH straight and
-  // orthogonal modes. This test flips to green when that defect is fixed.
-  it.fails('suitesparse-hamm-add20-sample still trips the planarization insertion loop', () => {
-    const g = loadDataset('suitesparse-hamm-add20-sample');
-    planarizationLayout(g, { mode: 'orthogonal' });
-  });
+  // suitesparse-hamm-add20-sample used to trip the planarization insertion
+  // loop (the LR planarity core returned non-planar embeddings, issue #33).
+  // It now planarizes (461 reinserted edges, ~11.6k crossings) in both modes,
+  // but takes ~1 min straight / ~5 min orthogonal, so it is not run here; the
+  // insertion defect is covered by test/planarity-embedding.test.ts.
 });
 
 describe('bridges in the embedding (root cause of the old infeasibility)', () => {

@@ -115,7 +115,7 @@ class LRPlanarity {
     const low2Child = this.numAt(this.lowpt2, child, 'lowpt2');
     const low2Parent = this.numAt(this.lowpt2, parent, 'lowpt2');
     if (lowChild < lowParent) {
-      this.lowpt2[parent] = Math.min(lowParent, low2Parent);
+      this.lowpt2[parent] = Math.min(lowParent, low2Child);
       this.lowpt[parent] = lowChild;
     } else if (lowChild > lowParent) {
       this.lowpt2[parent] = Math.min(low2Parent, lowChild);
@@ -208,7 +208,6 @@ class LRPlanarity {
 
   private addConstraints(edge: number, parent: number): boolean {
     const P = new ConflictPair();
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const Q = this.stack.pop();
       if (!Q) return false;

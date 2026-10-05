@@ -149,45 +149,46 @@ const connectedComponents = (neighbors: Array<Set<VertexId>>) => {
   return components;
 };
 
-const solveLinearSystem = (A: number[][], b: number[]): number[] => {
-  const n = b.length;
-  const x = Array(n).fill(0);
-  const M = A.map((row) => [...row]);
-  const rhs = [...b];
-
-  for (let i = 0; i < n; i += 1) {
-    let pivot = i;
-    let max = Math.abs(M[i]?.[i] ?? 0);
-    for (let r = i + 1; r < n; r += 1) {
-      const val = Math.abs(M[r]?.[i] ?? 0);
-      if (val > max) {
-        max = val;
-        pivot = r;
-      }
+// Solves the degree-scaled Tutte system (deg(v)·x_v − Σ interior neighbours x_n
+// = Σ boundary neighbours p_n), which is symmetric positive definite, with
+// Jacobi-preconditioned conjugate gradients. Memory stays O(V + E); a dense
+// solve needs O(V²) and exhausts the heap on planarized graphs with ~10k
+// crossing dummies.
+const solveTutteSystem = (diag: number[], cols: number[][], rhs: number[]): number[] => {
+  const n = rhs.length;
+  const x = Array<number>(n).fill(0);
+  const multiply = (src: number[], out: number[]) => {
+    for (let i = 0; i < n; i += 1) {
+      let sum = (diag[i] ?? 1) * (src[i] ?? 0);
+      for (const j of cols[i] ?? []) sum -= src[j] ?? 0;
+      out[i] = sum;
     }
-    if (pivot !== i) {
-      [M[i], M[pivot]] = [M[pivot]!, M[i]!];
-      [rhs[i], rhs[pivot]] = [rhs[pivot]!, rhs[i]!];
+  };
+  const r = rhs.slice();
+  const z = r.map((value, i) => value / (diag[i] ?? 1));
+  const p = z.slice();
+  const Ap = Array<number>(n).fill(0);
+  const dot = (a: number[], b: number[]) => {
+    let sum = 0;
+    for (let i = 0; i < n; i += 1) sum += (a[i] ?? 0) * (b[i] ?? 0);
+    return sum;
+  };
+  const tolerance = 1e-24 * Math.max(1, dot(rhs, rhs));
+  let rz = dot(r, z);
+  for (let iter = 0; iter < Math.max(100, 4 * n) && dot(r, r) > tolerance; iter += 1) {
+    multiply(p, Ap);
+    const pAp = dot(p, Ap);
+    if (!(Math.abs(pAp) > 0)) break;
+    const alpha = rz / pAp;
+    for (let i = 0; i < n; i += 1) {
+      x[i] = (x[i] ?? 0) + alpha * (p[i] ?? 0);
+      r[i] = (r[i] ?? 0) - alpha * (Ap[i] ?? 0);
+      z[i] = (r[i] ?? 0) / (diag[i] ?? 1);
     }
-    const diag = M[i]?.[i] ?? 0;
-    if (Math.abs(diag) < 1e-12) continue;
-    for (let r = i + 1; r < n; r += 1) {
-      const factor = (M[r]?.[i] ?? 0) / diag;
-      if (!Number.isFinite(factor)) continue;
-      for (let c = i; c < n; c += 1) {
-        M[r]![c] = (M[r]![c] ?? 0) - factor * (M[i]![c] ?? 0);
-      }
-      rhs[r] = (rhs[r] ?? 0) - factor * (rhs[i] ?? 0);
-    }
-  }
-
-  for (let i = n - 1; i >= 0; i -= 1) {
-    let sum = rhs[i] ?? 0;
-    for (let j = i + 1; j < n; j += 1) {
-      sum -= (M[i]?.[j] ?? 0) * (x[j] ?? 0);
-    }
-    const diag = M[i]?.[i] ?? 0;
-    x[i] = Math.abs(diag) < 1e-12 ? 0 : sum / diag;
+    const rzNext = dot(r, z);
+    const beta = rzNext / rz;
+    rz = rzNext;
+    for (let i = 0; i < n; i += 1) p[i] = (z[i] ?? 0) + beta * (p[i] ?? 0);
   }
   return x;
 };
@@ -320,8 +321,8 @@ export function planarStraightLine(mesh: HalfEdgeMesh): LayoutResult {
     const index = new Map<VertexId, number>();
     interior.forEach((v, idx) => index.set(v, idx));
     const size = interior.length;
-    const Ax: number[][] = Array.from({ length: size }, () => Array(size).fill(0));
-    const Ay: number[][] = Array.from({ length: size }, () => Array(size).fill(0));
+    const diag: number[] = Array(size).fill(1);
+    const cols: number[][] = Array.from({ length: size }, () => []);
     const bx: number[] = Array(size).fill(0);
     const by: number[] = Array(size).fill(0);
 
@@ -329,27 +330,20 @@ export function planarStraightLine(mesh: HalfEdgeMesh): LayoutResult {
       const row = index.get(v);
       if (row === undefined) continue;
       const neigh = Array.from(neighbors[v] ?? []);
-      const degree = neigh.length || 1;
-      const axRow = Ax[row];
-      const ayRow = Ay[row];
-      if (!axRow || !ayRow) continue;
-      axRow[row] = 1;
-      ayRow[row] = 1;
+      diag[row] = neigh.length || 1;
       for (const n of neigh) {
         if (boundarySet.has(n)) {
           const pos = positions.get(n) ?? { x: 0, y: 0 };
-          bx[row] = (bx[row] ?? 0) + pos.x / degree;
-          by[row] = (by[row] ?? 0) + pos.y / degree;
+          bx[row] = (bx[row] ?? 0) + pos.x;
+          by[row] = (by[row] ?? 0) + pos.y;
         } else if (index.has(n)) {
-          const col = index.get(n)!;
-          axRow[col] = (axRow[col] ?? 0) - 1 / degree;
-          ayRow[col] = (ayRow[col] ?? 0) - 1 / degree;
+          cols[row]!.push(index.get(n)!);
         }
       }
     }
 
-    const solvedX = solveLinearSystem(Ax, bx);
-    const solvedY = solveLinearSystem(Ay, by);
+    const solvedX = solveTutteSystem(diag, cols, bx);
+    const solvedY = solveTutteSystem(diag, cols, by);
     interior.forEach((v, idx) => {
       positions.set(v, { x: solvedX[idx] ?? 0, y: solvedY[idx] ?? 0 });
     });

@@ -34,6 +34,24 @@ const toPlanarityEdges = (edges: ReturnType<Graph['edges']>): PlanarityEdgeSpec[
   return edges.map((edge) => ({ id: edge.id, u: edge.u, v: edge.v }));
 };
 
+// Lay each parallel edge directly beside its representative so every bundle
+// bounds empty digon faces: after the representative at its first endpoint,
+// before it at the other.
+const insertParallelEdges = (
+  order: RotationSystem['order'],
+  parallels: Map<EdgeId, { u: VertexId; v: VertexId; ids: EdgeId[] }>,
+) => {
+  parallels.forEach(({ u, v, ids }, rep) => {
+    const atU = order[u] ?? [];
+    const atV = order[v] ?? [];
+    const iu = atU.findIndex((entry) => entry.edge === rep);
+    const iv = atV.findIndex((entry) => entry.edge === rep);
+    if (iu < 0 || iv < 0) throw new Error(`Planarity embedding is missing edge ${rep}.`);
+    atU.splice(iu + 1, 0, ...ids.map((edge) => ({ edge, to: v })));
+    atV.splice(iv, 0, ...ids.slice().reverse().map((edge) => ({ edge, to: u })));
+  });
+};
+
 export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): PlanarityResult {
   assertGraph(graph, 'testPlanarity');
   const n = graph.vertexCount();
@@ -44,8 +62,7 @@ export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): Pla
   const maxTsVertices = options.maxTsVertices ?? 250;
   const ignoredSelfLoops: EdgeId[] = [];
   const loopsByVertex: EdgeId[][] = Array.from({ length: n }, () => []);
-  const included: typeof edges = [];
-  const edgeMap: EdgeId[] = [];
+  let included: typeof edges = [];
 
   if (n === 0) {
     return { planar: true, embedding: { order: [] } };
@@ -64,8 +81,26 @@ export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): Pla
       throw new Error('Planarity test requires an undirected graph.');
     }
     included.push(edge);
-    edgeMap.push(edge.id);
   }
+
+  // Parallel edges never change planarity, and neither core accepts them (the
+  // native core does not terminate, the LR core rejects planar multigraphs), so
+  // test the underlying simple graph and re-insert the bundles afterwards.
+  const parallels = new Map<EdgeId, { u: VertexId; v: VertexId; ids: EdgeId[] }>();
+  const representative = new Map<string, EdgeId>();
+  included = included.filter((edge) => {
+    const key = edge.u < edge.v ? `${edge.u}:${edge.v}` : `${edge.v}:${edge.u}`;
+    const rep = representative.get(key);
+    if (rep === undefined) {
+      representative.set(key, edge.id);
+      return true;
+    }
+    const bundle = parallels.get(rep) ?? { u: edge.u, v: edge.v, ids: [] };
+    bundle.ids.push(edge.id);
+    parallels.set(rep, bundle);
+    return false;
+  });
+  const edgeMap: EdgeId[] = included.map((edge) => edge.id);
 
   if (included.length === 0) {
     const order: RotationSystem['order'] = Array.from({ length: n }, () => []);
@@ -96,6 +131,7 @@ export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): Pla
   if (useTs) {
     const embedding = planarityLeftRight(n, planarityEdges);
     if (embedding) {
+      insertParallelEdges(embedding.order, parallels);
       loopsByVertex.forEach((loops, v) => {
         if (!loops.length) return;
         loops.sort((a, b) => a - b);
@@ -171,6 +207,7 @@ export function testPlanarity(graph: Graph, options: PlanarityOptions = {}): Pla
             list?.push({ edge: edgeId, to });
           }
         }
+        insertParallelEdges(order, parallels);
         loopsByVertex.forEach((loops, v) => {
           if (!loops.length) return;
           loops.sort((a, b) => a - b);
